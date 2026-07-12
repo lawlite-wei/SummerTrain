@@ -1,0 +1,35 @@
+# Keil MDK Project Files
+*.uvguix.*
+*.uvoptx
+*.uvprojx
+
+# Keil MDK Build Output
+*.build_log.htm
+objects/
+Listings/
+*.lnp
+*.lst
+*.map
+*.dep
+
+# Keil MDK User-specific
+*.bak
+*.log
+*.plg
+*.mpu
+*.tra
+*.crf
+*.d
+*.axf
+*.iex
+
+# Compiled files
+*.o
+*.d
+*.i
+*.s
+
+# Specific numbered files
+1.uvguix.*
+1.uvoptx
+1.uvprojx
