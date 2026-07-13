@@ -50,7 +50,7 @@ int main (void)
     clock_init(SYSTEM_CLOCK_120M);                                              // 初始化芯片时钟 工作频率为 120MHz
     debug_init();                                                               // 初始化默认 Debug UART
 
-    menu_init();  // 初始化屏幕+按键+菜单链表
+    HARDWARE_INIT();  // 各个硬件的初始化
 	
     while(1)
     {
@@ -69,5 +69,10 @@ int main (void)
 //-------------------------------------------------------------------------------------------------------------------
 void pit_handler (void)
 {
-
+    /* 编码器数据更新（每 10ms 调用一次，PIT 周期 1ms） */
+    static uint16 encoder_tick = 0;
+    if (++encoder_tick >= 10) {
+        encoder_tick = 0;
+        encoder_update();
+    }
 }

@@ -1,5 +1,4 @@
 #include "zf_common_headfile.h"
-#include "menu.h"
 
 /*==================== 按键状态 ====================*/
 /*
@@ -432,6 +431,7 @@ void show_process(void *parameter)
 /*
  *  主菜单: ======MAIN======
  *          > Debug       →  Debug子页 (motor, encoder, imu)
+ *                            motor → Motor子页 (pwm_L, pwm_R)  ← 三级菜单
  *            PID         →  PID子页 (speed_pid, track_pid)
  *            Start       →  执行 start_car()
  *            Camera      →  Camera子页 (gary, binarize)
@@ -439,6 +439,13 @@ void show_process(void *parameter)
 static menu_unit *debug_page;
 static menu_unit *pid_page;
 static menu_unit *camera_page;
+static menu_unit *motor_page;
+static menu_unit *pwm_L_item;
+static menu_unit *pwm_R_item;
+
+/* PWM 当前值 */
+static int16 pwm_L_val = 0;
+static int16 pwm_R_val = 0;
 
 static void build_menu_tree(void)
 {
@@ -447,10 +454,17 @@ static void build_menu_tree(void)
     debug_page  = menu_create_page("--Debug--");
     pid_page    = menu_create_page("--PID--");
     camera_page = menu_create_page("--Camera--");
+    motor_page  = menu_create_page("--Motor--");
 
-    /* Debug 子页 */
-    menu_add_function(debug_page, "motor",   NULL_FUN);
-    menu_add_function(debug_page, "encoder", NULL_FUN);
+    /* Motor 子页 (三级菜单) : pwm_L, pwm_R */
+    menu_add_function(motor_page, "pwm_L: 0", pwm_adjust_L);
+    menu_add_function(motor_page, "pwm_R: 0", pwm_adjust_R);
+    pwm_L_item = motor_page->enter;
+    pwm_R_item = pwm_L_item->up;
+
+    /* Debug 子页 : motor(→子页), encoder, imu */
+    menu_add_submenu(debug_page, "motor",   motor_page);
+    menu_add_function(debug_page, "encoder", encoder_test);
     menu_add_function(debug_page, "imu",     NULL_FUN);
 
     /* PID 子页 */
@@ -458,8 +472,8 @@ static void build_menu_tree(void)
     menu_add_function(pid_page, "track_pid",  NULL_FUN);
 
     /* Camera 子页 */
-    menu_add_function(camera_page, "gary",     NULL_FUN);
-    menu_add_function(camera_page, "binarize", NULL_FUN);
+    menu_add_function(camera_page, "gary",     show_gary);
+    menu_add_function(camera_page, "binarize", show_binarize);
 
     /* 主页项目 */
     menu_add_submenu(main_page, "Debug",  debug_page);
@@ -481,6 +495,14 @@ void menu_init(void)
     /* 按键初始化（10ms 扫描周期，需在中断/PIT中调用 key_scanner） */
     key_init(10);
 
+    /* 摄像头初始化 */
+    ips200_show_string(0, 0, "mt9v03x init.");
+    while (mt9v03x_init()) {
+        ips200_show_string(0, 16, "mt9v03x reinit.");
+        system_delay_ms(500);
+    }
+    ips200_show_string(0, 16, "init success.");
+
     /* 构建菜单树 */
     build_menu_tree();
 
@@ -493,9 +515,75 @@ void menu_init(void)
     show_current_page();
 }
 
+/*==================== 重绘请求 ====================*/
+void menu_request_redraw(void)
+{
+    need_full_redraw = 1;
+}
+
 /*==================== 空函数 ====================*/
 void NULL_FUN(void)
 {
+}
+
+/*==================== Motor PWM 调节 ====================*/
+/*
+ *  PWM 调节页面: 显示当前值和操作提示
+ *  KEY_4(上键): PWM + 2    KEY_3(下键): PWM - 2    KEY_1(返回): 退出
+ */
+static void pwm_adjust(int16 *p_val, gpio_pin_enum dir, pwm_channel_enum pwm,
+                       menu_unit *item)
+{
+    uint16 val_y = DIS_Y * 3;
+
+    ips200_show_string(0, DIS_Y, item->name);
+    ips200_show_string(0, val_y, "                ");
+    ips200_show_int(0, val_y, *p_val, 5);
+    ips200_show_string(0, DIS_Y * 5, "UP:+2  DOWN:-2");
+    ips200_show_string(0, DIS_Y * 6, "BACK: exit");
+
+    while (1) {
+        key_scanner();
+
+        if (key_get_state(KEY_4) == KEY_SHORT_PRESS) {
+            key_clear_state(KEY_4);
+            *p_val += 2;
+            if (*p_val > 10000) *p_val = 10000;
+            motor_set_pwm(dir, pwm, *p_val);
+            ips200_show_string(0, val_y, "                ");
+            ips200_show_int(0, val_y, *p_val, 5);
+        }
+        if (key_get_state(KEY_3) == KEY_SHORT_PRESS) {
+            key_clear_state(KEY_3);
+            *p_val -= 2;
+            if (*p_val < -10000) *p_val = -10000;
+            motor_set_pwm(dir, pwm, *p_val);
+            ips200_show_string(0, val_y, "                ");
+            ips200_show_int(0, val_y, *p_val, 5);
+        }
+        if (key_get_state(KEY_1) == KEY_SHORT_PRESS) {
+            key_clear_state(KEY_1);
+            break;
+        }
+    }
+
+    /* 更新菜单项名称以反映当前值 */
+    if (item == pwm_L_item)
+        sprintf(item->name, "pwm_L: %d", *p_val);
+    else
+        sprintf(item->name, "pwm_R: %d", *p_val);
+    need_full_redraw = 1;
+}
+
+void pwm_adjust_L(void)
+{
+    /* 首次进入时先写入电机pwm=0，确保电机停止 */
+    pwm_adjust(&pwm_L_val, DIR_L, PWM_L, pwm_L_item);
+}
+
+void pwm_adjust_R(void)
+{
+    pwm_adjust(&pwm_R_val, DIR_R, PWM_R, pwm_R_item);
 }
 
 /*==================== Start 功能 ====================*/

@@ -74,10 +74,15 @@ void menu_add_param(menu_unit *page, const char *name, void *p_param,
                     type_value t, float delta, uint8 num, uint8 point_num,
                     unit_type ut);
 
+/* 菜单重绘请求（外部函数调用后标记需要刷新） */
+void menu_request_redraw(void);
+
 /* 空函数 */
 void NULL_FUN(void);
 
 /* 用户自定义函数声明 */
 void start_car(void);
+void pwm_adjust_L(void);
+void pwm_adjust_R(void);
 
 #endif
