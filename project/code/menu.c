@@ -450,11 +450,14 @@ void show_process(void *parameter)
 
     /* 导航 */
     if (button1 == 1) {
-        if (!p_unit->is_title) {
-            p_unit = p_unit->back;
-            if (p_unit->is_title && p_unit != main_page)
+        /* 主页面不响应返回键：p_unit 在主页面上则忽略 */
+        if (!(p_unit->back == main_page || p_unit == main_page)) {
+            if (!p_unit->is_title) {
                 p_unit = p_unit->back;
-            need_full_redraw = 1;
+                if (p_unit->is_title && p_unit != main_page)
+                    p_unit = p_unit->back;
+                need_full_redraw = 1;
+            }
         }
     } else if (button2 == 1) {
         if (p_unit->is_title) {

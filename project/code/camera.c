@@ -33,17 +33,35 @@ int16 longest_white_right[2];               // 右边的最长白列，0为长�
 int16 left_lost_flag[MT9V03X_H];            // 左丢线数组
 int16 right_lost_flag[MT9V03X_H];           // 右丢线数组
 
+static uint8 binary_image[DEAL_IMAGE_H][DEAL_IMAGE_W];  // 二值化图像缓冲（最长白列算法用）
+
 /*
  *  灰度显示：持续刷新摄像头灰度图像，按下 button1(返回) 退出
  */
 void show_gary(void)
 {
+    int i, j;
     ips200_clear();
     ips200_show_string(0, 300, "KEY1: back");
 
     while (1) {
         if (mt9v03x_finish_flag) {
-            ips200_displayimage03x((const uint8 *)mt9v03x_image, MT9V03X_W, MT9V03X_H);
+            /* 二值化：灰度转0/1，供最长白列算法使用 */
+            for (i = 0; i < DEAL_IMAGE_H; i++) {
+                for (j = 0; j < DEAL_IMAGE_W; j++) {
+                    binary_image[i][j] = (mt9v03x_image[i][j] >= BINARIZATION_THRESHOLD) ? 1 : 0;
+                }
+            }
+
+            /* 显示灰度图像（y=30 与 show_boundary_line 对齐） */
+            ips200_show_gray_image(0, 30, (const uint8 *)mt9v03x_image,
+                                   MT9V03X_W, MT9V03X_H, MT9V03X_W, MT9V03X_H, 0);
+
+            /* 最长白列巡线 + 边界叠加显示 */
+            boundary_line_init();
+            longest_white_sweepline(binary_image);
+            show_boundary_line();
+
             mt9v03x_finish_flag = 0;
         }
         key_scanner();
@@ -61,14 +79,29 @@ void show_gary(void)
  */
 void show_binarize(void)
 {
+    int i, j;
     ips200_clear();
     ips200_show_string(0, 300, "KEY1: back");
 
     while (1) {
         if (mt9v03x_finish_flag) {
-            ips200_show_gray_image(0, 0, (const uint8 *)mt9v03x_image,
+            /* 二值化：灰度转0/1，供最长白列算法使用 */
+            for (i = 0; i < DEAL_IMAGE_H; i++) {
+                for (j = 0; j < DEAL_IMAGE_W; j++) {
+                    binary_image[i][j] = (mt9v03x_image[i][j] >= BINARIZATION_THRESHOLD) ? 1 : 0;
+                }
+            }
+
+            /* 显示二值化图像（y=30 与 show_boundary_line 对齐） */
+            ips200_show_gray_image(0, 30, (const uint8 *)mt9v03x_image,
                                    MT9V03X_W, MT9V03X_H, MT9V03X_W, MT9V03X_H,
                                    BINARIZATION_THRESHOLD);
+
+            /* 最长白列巡线 + 边界叠加显示 */
+            boundary_line_init();
+            longest_white_sweepline(binary_image);
+            show_boundary_line();
+
             mt9v03x_finish_flag = 0;
         }
         key_scanner();
