@@ -37,6 +37,9 @@ typedef struct {
     type_value  par_type;       /* 参数类型 */
     uint8       num;            /* 显示整数位数 */
     uint8       point_num;      /* 显示小数位数 */
+    int16       min_val;        /* 原地编辑最小值 */
+    int16       max_val;        /* 原地编辑最大值 */
+    void        (*on_change)(int16 val); /* 值变更时回调（如更新硬件PWM） */
 } param_set;
 
 /*==================== 菜单单元（双向链表节点） ====================*/
@@ -73,6 +76,9 @@ void menu_add_submenu(menu_unit *page, const char *name, menu_unit *sub_page);
 void menu_add_param(menu_unit *page, const char *name, void *p_param,
                     type_value t, float delta, uint8 num, uint8 point_num,
                     unit_type ut);
+void menu_add_inline_edit(menu_unit *page, const char *name,
+                          int16 *p_val, int16 step, int16 min_val, int16 max_val,
+                          void (*on_change)(int16 val));
 
 /* 菜单重绘请求（外部函数调用后标记需要刷新） */
 void menu_request_redraw(void);
@@ -82,7 +88,5 @@ void NULL_FUN(void);
 
 /* 用户自定义函数声明 */
 void start_car(void);
-void pwm_adjust_L(void);
-void pwm_adjust_R(void);
 
 #endif

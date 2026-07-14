@@ -44,6 +44,7 @@ void motor_test(void)
 
     while (1) {
         key_scanner();
+        system_delay_ms(10);
 
         if (key_get_state(KEY_4) == KEY_SHORT_PRESS) {
             key_clear_state(KEY_4);
@@ -117,6 +118,7 @@ void encoder_test(void)
         }
 
         key_scanner();
+        system_delay_ms(10);
         if (key_get_state(KEY_1) == KEY_SHORT_PRESS) {
             key_clear_state(KEY_1);
             break;

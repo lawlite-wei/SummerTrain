@@ -232,6 +232,39 @@ void menu_add_param(menu_unit *page, const char *name, void *p_param,
     }
 }
 
+/*----------------------------------------------------------------------------
+ *  @brief      添加原地编辑项（确认进入编辑，上下调值，返回退出）
+ *  @param      page        目标页面
+ *  @param      name        显示名称（自动追加 ": val"）
+ *  @param      p_val       值指针
+ *  @param      step        调整步长
+ *  @param      min_val     最小值
+ *  @param      max_val     最大值
+ *  @param      on_change   值变更回调（如写入硬件PWM），可为NULL
+ *----------------------------------------------------------------------------*/
+void menu_add_inline_edit(menu_unit *page, const char *name,
+                          int16 *p_val, int16 step, int16 min_val, int16 max_val,
+                          void (*on_change)(int16 val))
+{
+    char display[STR_LEN_MAX];
+    sprintf(display, "%s: %d", name, *p_val);
+    menu_add_function(page, display, NULL);
+
+    /* menu_add_function 将新项插为 page->enter->down */
+    menu_unit *item = page->enter->down;
+
+    item->par_set = alloc_param();
+    item->par_set->p_par      = p_val;
+    item->par_set->delta      = step;
+    item->par_set->par_type   = TYPE_INT;
+    item->par_set->num        = 5;
+    item->par_set->point_num  = 0;
+    item->par_set->min_val    = min_val;
+    item->par_set->max_val    = max_val;
+    item->par_set->on_change  = on_change;
+    item->current_operation   = NULL;    /* 确保确认键进编辑模式 */
+}
+
 /*==================== 显示函数 ====================*/
 
 static void show_current_page(void)
@@ -359,110 +392,134 @@ static void key_read(void)
     }
 }
 
+/*==================== 原地编辑项指针（前向声明） ====================*/
+static menu_unit *pwm_L_item;
+static menu_unit *pwm_R_item;
+
 /*==================== 主循环 ====================*/
 
 void show_process(void *parameter)
 {
+    /* 原地编辑状态（static 保持跨调用持久） */
+    static uint8      editing    = 0;
+    static int16     *edit_val   = NULL;
+    static int16      edit_step;
+    static menu_unit *edit_item  = NULL;
+    static char       edit_base[STR_LEN_MAX];
+
     /* 1. 读取按键 */
     key_read();
 
-    if (!(button1 || button2 || button3 || button4)) {
-        /* 无按键时仍处理参数显示（首次显示值） */
-        if (p_unit != NULL &&
-            (p_unit->type_t == NORMAL_PAR || p_unit->type_t == PID_PAR))
-            change_value(p_unit->par_set);
+    /* ---- 编辑模式：上下调值，不回页面 ---- */
+    if (editing) {
+        int16  edit_max = edit_item->par_set->max_val;
+        int16  edit_min = edit_item->par_set->min_val;
+        void (*on_chg)(int16) = edit_item->par_set->on_change;
+
+        if (button4 == 1) {
+            *edit_val += edit_step;
+            if (*edit_val > edit_max) *edit_val = edit_max;
+            if (on_chg) on_chg(*edit_val);
+            sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
+            need_full_redraw = 1;
+        } else if (button3 == 1) {
+            *edit_val -= edit_step;
+            if (*edit_val < edit_min) *edit_val = edit_min;
+            if (on_chg) on_chg(*edit_val);
+            sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
+            need_full_redraw = 1;
+        } else if (button1 == 1) {
+            editing     = 0;
+            edit_val    = NULL;
+            edit_item   = NULL;
+            need_full_redraw = 1;
+        }
+
+        show_current_page();
+        p_unit_last = p_unit;
+        button1 = button2 = button3 = button4 = 0;
         return;
     }
 
-    /* 2. 判断首页标记 */
+    /* ---- 普通模式 ---- */
+    if (!(button1 || button2 || button3 || button4)) {
+        return;
+    }
+
     first_in_page_flag = (p_unit_last != p_unit) && (button1 || button2);
 
-    /* 3. 导航 */
+    /* 导航 */
     if (button1 == 1) {
-        /* 返回 */
         if (!p_unit->is_title) {
             p_unit = p_unit->back;
-            /* 如果退到了子页标题（非主页），继续退到父项目 */
             if (p_unit->is_title && p_unit != main_page)
                 p_unit = p_unit->back;
             need_full_redraw = 1;
         }
     } else if (button2 == 1) {
         if (p_unit->is_title) {
-            /* 标题页按确认 → 进入第一个项目 */
-            p_unit           = p_unit->enter;
+            p_unit = p_unit->enter;
             need_full_redraw = 1;
         } else if (p_unit->enter == p_unit) {
-            /* 叶子节点 → 执行功能 */
-            if (p_unit->current_operation != NULL)
+            /* 叶子节点 */
+            if (p_unit->current_operation != NULL) {
                 p_unit->current_operation();
+            } else if (p_unit->par_set != NULL && p_unit->par_set->p_par != NULL) {
+                /* 进入原地编辑模式 */
+                editing    = 1;
+                edit_val   = (int16 *)p_unit->par_set->p_par;
+                edit_step  = (int16)p_unit->par_set->delta;
+                edit_item  = p_unit;
+                strcpy(edit_base, p_unit->name);
+                char *c = strchr(edit_base, ':');
+                if (c) *c = '\0';
+            }
         } else {
-            /* 子菜单 → 进入 */
-            p_unit           = p_unit->enter;
+            p_unit = p_unit->enter;
             need_full_redraw = 1;
         }
     } else if (button3 == 1) {
-        /* 下翻 */
         if (!p_unit->is_title)
             p_unit = p_unit->up;
     } else if (button4 == 1) {
-        /* 上翻 */
         if (!p_unit->is_title)
             p_unit = p_unit->down;
     }
 
-    /* 4. 显示 */
     show_current_page();
 
-    /* 5. 参数调节处理 */
-    if (p_unit != NULL &&
-        (p_unit->type_t == NORMAL_PAR || p_unit->type_t == PID_PAR))
-        change_value(p_unit->par_set);
-
-    /* 6. 记录状态，复位 */
     p_unit_last = p_unit;
-    button1 = 0;
-    button2 = 0;
-    button3 = 0;
-    button4 = 0;
+    button1 = button2 = button3 = button4 = 0;
 }
 
 /*==================== 构建菜单树 ====================*/
-/*
- *  主菜单: ======MAIN======
- *          > Debug       →  Debug子页 (motor, encoder, imu)
- *                            motor → Motor子页 (pwm_L, pwm_R)  ← 三级菜单
- *            PID         →  PID子页 (speed_pid, track_pid)
- *            Start       →  执行 start_car()
- *            Camera      →  Camera子页 (gary, binarize)
- */
 static menu_unit *debug_page;
 static menu_unit *pid_page;
 static menu_unit *camera_page;
 static menu_unit *motor_page;
-static menu_unit *pwm_L_item;
-static menu_unit *pwm_R_item;
 
-/* PWM 当前值 */
+/* PWM 当前值 & 变更回调 */
 static int16 pwm_L_val = 0;
 static int16 pwm_R_val = 0;
 
+static void pwm_L_on_change(int16 val) { motor_set_pwm(DIR_L, PWM_L, (uint32)val); }
+static void pwm_R_on_change(int16 val) { motor_set_pwm(DIR_R, PWM_R, (uint32)val); }
+
 static void build_menu_tree(void)
 {
-    /* 创建页面 */
     main_page   = menu_create_page("======MAIN======");
     debug_page  = menu_create_page("--Debug--");
     pid_page    = menu_create_page("--PID--");
     camera_page = menu_create_page("--Camera--");
     motor_page  = menu_create_page("--Motor--");
 
-    /* Motor 子页 (三级菜单) : pwm_L, pwm_R */
-    menu_add_function(motor_page, "pwm_L: 0", pwm_adjust_L);
-    menu_add_function(motor_page, "pwm_R: 0", pwm_adjust_R);
+    /* Motor 子页 : 原地编辑项 */
+    menu_add_inline_edit(motor_page, "pwm_L", &pwm_L_val, 50, -10000, 10000, pwm_L_on_change);
+    menu_add_inline_edit(motor_page, "pwm_R", &pwm_R_val, 50, -10000, 10000, pwm_R_on_change);
     pwm_L_item = motor_page->enter;
     pwm_R_item = pwm_L_item->up;
 
-    /* Debug 子页 : motor(→子页), encoder, imu */
+    /* Debug 子页 */
     menu_add_submenu(debug_page, "motor",   motor_page);
     menu_add_function(debug_page, "encoder", encoder_test);
     menu_add_function(debug_page, "imu",     NULL_FUN);
@@ -475,7 +532,7 @@ static void build_menu_tree(void)
     menu_add_function(camera_page, "gary",     show_gary);
     menu_add_function(camera_page, "binarize", show_binarize);
 
-    /* 主页项目 */
+    /* 主页 */
     menu_add_submenu(main_page, "Debug",  debug_page);
     menu_add_submenu(main_page, "PID",    pid_page);
     menu_add_function(main_page, "Start", start_car);
@@ -495,13 +552,14 @@ void menu_init(void)
     /* 按键初始化（10ms 扫描周期，需在中断/PIT中调用 key_scanner） */
     key_init(10);
 
-    /* 摄像头初始化 */
+    /* 摄像头初始化（失败不阻塞菜单） */
     ips200_show_string(0, 0, "mt9v03x init.");
-    while (mt9v03x_init()) {
-        ips200_show_string(0, 16, "mt9v03x reinit.");
+    if (mt9v03x_init()) {
+        ips200_show_string(0, 16, "camera fail, skip.");
         system_delay_ms(500);
+    } else {
+        ips200_show_string(0, 16, "init success.");
     }
-    ips200_show_string(0, 16, "init success.");
 
     /* 构建菜单树 */
     build_menu_tree();
@@ -524,66 +582,6 @@ void menu_request_redraw(void)
 /*==================== 空函数 ====================*/
 void NULL_FUN(void)
 {
-}
-
-/*==================== Motor PWM 调节 ====================*/
-/*
- *  PWM 调节页面: 显示当前值和操作提示
- *  KEY_4(上键): PWM + 2    KEY_3(下键): PWM - 2    KEY_1(返回): 退出
- */
-static void pwm_adjust(int16 *p_val, gpio_pin_enum dir, pwm_channel_enum pwm,
-                       menu_unit *item)
-{
-    uint16 val_y = DIS_Y * 3;
-
-    ips200_show_string(0, DIS_Y, item->name);
-    ips200_show_string(0, val_y, "                ");
-    ips200_show_int(0, val_y, *p_val, 5);
-    ips200_show_string(0, DIS_Y * 5, "UP:+2  DOWN:-2");
-    ips200_show_string(0, DIS_Y * 6, "BACK: exit");
-
-    while (1) {
-        key_scanner();
-
-        if (key_get_state(KEY_4) == KEY_SHORT_PRESS) {
-            key_clear_state(KEY_4);
-            *p_val += 2;
-            if (*p_val > 10000) *p_val = 10000;
-            motor_set_pwm(dir, pwm, *p_val);
-            ips200_show_string(0, val_y, "                ");
-            ips200_show_int(0, val_y, *p_val, 5);
-        }
-        if (key_get_state(KEY_3) == KEY_SHORT_PRESS) {
-            key_clear_state(KEY_3);
-            *p_val -= 2;
-            if (*p_val < -10000) *p_val = -10000;
-            motor_set_pwm(dir, pwm, *p_val);
-            ips200_show_string(0, val_y, "                ");
-            ips200_show_int(0, val_y, *p_val, 5);
-        }
-        if (key_get_state(KEY_1) == KEY_SHORT_PRESS) {
-            key_clear_state(KEY_1);
-            break;
-        }
-    }
-
-    /* 更新菜单项名称以反映当前值 */
-    if (item == pwm_L_item)
-        sprintf(item->name, "pwm_L: %d", *p_val);
-    else
-        sprintf(item->name, "pwm_R: %d", *p_val);
-    need_full_redraw = 1;
-}
-
-void pwm_adjust_L(void)
-{
-    /* 首次进入时先写入电机pwm=0，确保电机停止 */
-    pwm_adjust(&pwm_L_val, DIR_L, PWM_L, pwm_L_item);
-}
-
-void pwm_adjust_R(void)
-{
-    pwm_adjust(&pwm_R_val, DIR_R, PWM_R, pwm_R_item);
 }
 
 /*==================== Start 功能 ====================*/

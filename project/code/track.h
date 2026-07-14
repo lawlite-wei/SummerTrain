@@ -3,6 +3,6 @@
 
 #include "zf_common_headfile.h"
 
-
+void track_line   (void);
 
 #endif
