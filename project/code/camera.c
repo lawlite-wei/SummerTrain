@@ -1,6 +1,8 @@
 #include "camera.h"
 /*==================== Camera 图像显示 ====================*/
-#define BINARIZATION_THRESHOLD      64      /* 二值化阈值 */
+uint8 binarization_threshold = 64;            /* 二值化阈值（大津法动态更新） */
+volatile uint8 otsu_update_flag = 0;          /* 大津法更新请求标志（PIT中断置1） */
+uint8 otsu_enable = 0;                        /* 大津法使能（进入摄像头显示时置1） */
 
 // 相关变量定义
 float line_err;                             // 中线误差
@@ -44,12 +46,20 @@ void show_gary(void)
     ips200_clear();
     ips200_show_string(0, 300, "KEY1: back");
 
+    otsu_enable = 1;  /* 启动大津法定时更新 */
+
     while (1) {
         if (mt9v03x_finish_flag) {
+            /* PIT中断每5ms置位，帧完整时更新阈值 */
+            if (otsu_update_flag) {
+                otsu_update_flag = 0;
+                binarization_threshold = otsuThreshold((uint8 *)mt9v03x_image);
+            }
+
             /* 二值化：灰度转0/1，供最长白列算法使用 */
             for (i = 0; i < DEAL_IMAGE_H; i++) {
                 for (j = 0; j < DEAL_IMAGE_W; j++) {
-                    binary_image[i][j] = (mt9v03x_image[i][j] >= BINARIZATION_THRESHOLD) ? 1 : 0;
+                    binary_image[i][j] = (mt9v03x_image[i][j] >= binarization_threshold) ? 1 : 0;
                 }
             }
 
@@ -72,6 +82,8 @@ void show_gary(void)
             break;
         }
     }
+
+    otsu_enable = 0;  /* 退出摄像头显示，停止大津法更新 */
 }
 
 /*
@@ -83,19 +95,27 @@ void show_binarize(void)
     ips200_clear();
     ips200_show_string(0, 300, "KEY1: back");
 
+    otsu_enable = 1;  /* 启动大津法定时更新 */
+
     while (1) {
         if (mt9v03x_finish_flag) {
+            /* PIT中断每5ms置位，帧完整时更新阈值 */
+            if (otsu_update_flag) {
+                otsu_update_flag = 0;
+                binarization_threshold = otsuThreshold((uint8 *)mt9v03x_image);
+            }
+
             /* 二值化：灰度转0/1，供最长白列算法使用 */
             for (i = 0; i < DEAL_IMAGE_H; i++) {
                 for (j = 0; j < DEAL_IMAGE_W; j++) {
-                    binary_image[i][j] = (mt9v03x_image[i][j] >= BINARIZATION_THRESHOLD) ? 1 : 0;
+                    binary_image[i][j] = (mt9v03x_image[i][j] >= binarization_threshold) ? 1 : 0;
                 }
             }
 
             /* 显示二值化图像（y=30 与 show_boundary_line 对齐） */
             ips200_show_gray_image(0, 30, (const uint8 *)mt9v03x_image,
                                    MT9V03X_W, MT9V03X_H, MT9V03X_W, MT9V03X_H,
-                                   BINARIZATION_THRESHOLD);
+                                   binarization_threshold);
 
             /* 最长白列巡线 + 边界叠加显示 */
             boundary_line_init();
@@ -112,6 +132,8 @@ void show_binarize(void)
             break;
         }
     }
+
+    otsu_enable = 0;  /* 退出摄像头显示，停止大津法更新 */
 }
 
 /*
@@ -235,7 +257,7 @@ uint8 image_out_of_bounds(unsigned char in_image[DEAL_IMAGE_H][DEAL_IMAGE_W])
 }
 
 /*
- *  最长白列巡线扫线
+ *  最长白列巡线扫线（双白列）
  */
 void longest_white_sweepline(uint8 image[DEAL_IMAGE_H][DEAL_IMAGE_W])
 {
@@ -379,4 +401,85 @@ void longest_white_sweepline(uint8 image[DEAL_IMAGE_H][DEAL_IMAGE_W])
         mid_line[i]=(left_line[i]+right_line[i])/2;//存储中线
     }
 }
- 
+
+/*
+ *  大律法自适应阈值
+ *  通过遍历灰度图自动计算二值化阈值，用于解决光线变化
+ *  隔点采样（每2个像素取1个），计算量降至 1/4
+ */
+uint8 otsuThreshold(uint8 *image)
+{
+    #define GRAY_SCALE 256
+    static uint8 last_threshold = 64;
+    int pixel_count[GRAY_SCALE];
+    float pixel_pro[GRAY_SCALE];
+    int i, j;
+    int pixel_max = 0, pixel_min = 255;
+    uint16 width  = MT9V03X_W;
+    uint16 height = MT9V03X_H;
+    int pixel_sum  = width * height / 4;
+    uint8 threshold = 0;
+    uint8 *data = image;
+    uint32 gray_sum = 0;
+
+    for (i = 0; i < GRAY_SCALE; i++)
+    {
+        pixel_count[i] = 0;
+        pixel_pro[i]   = 0;
+    }
+
+    /* 隔点采样统计直方图 */
+    for (i = 0; i < height; i += 2)
+    {
+        for (j = 0; j < width; j += 2)
+        {
+            uint8 val = data[i * width + j];
+            pixel_count[val]++;
+            gray_sum += val;
+            if (val > pixel_max) pixel_max = val;
+            if (val < pixel_min) pixel_min = val;
+        }
+    }
+
+    /* 计算每个灰度级的比例 */
+    for (i = pixel_min; i < pixel_max; i++)
+    {
+        pixel_pro[i] = (float)pixel_count[i] / pixel_sum;
+    }
+
+    /* OTSU 类间方差最大化 */
+    float w0, w1, u0tmp, u1tmp, u0, u1, delta_tmp, delta_max = 0;
+    w0 = w1 = u0tmp = u1tmp = u0 = u1 = delta_tmp = 0;
+
+    for (j = pixel_min; j < pixel_max; j++)
+    {
+        w0    += pixel_pro[j];
+        u0tmp += j * pixel_pro[j];
+
+        w1    = 1 - w0;
+        u1tmp = (float)gray_sum / pixel_sum - u0tmp;
+
+        u0        = u0tmp / w0;
+        u1        = u1tmp / w1;
+        delta_tmp = w0 * w1 * (u0 - u1) * (u0 - u1);
+
+        if (delta_tmp > delta_max)
+        {
+            delta_max = delta_tmp;
+            threshold = (uint8)j;
+        }
+        if (delta_tmp < delta_max)
+        {
+            break;
+        }
+    }
+
+    /* 阈值合理性检查：出现异常值时沿用上一次有效阈值 */
+    if (threshold > 90 && threshold < 130)
+        last_threshold = threshold;
+    else
+        threshold = last_threshold;
+
+    return threshold;
+}
+

@@ -75,4 +75,15 @@ void pit_handler (void)
         encoder_tick = 0;
         encoder_update();
     }
+
+    /* 大津法阈值更新请求（每 5ms，仅在摄像头显示模式下生效） */
+    static uint16 otsu_tick = 0;
+    if (otsu_enable) {
+        if (++otsu_tick >= 5) {
+            otsu_tick = 0;
+            otsu_update_flag = 1;
+        }
+    } else {
+        otsu_tick = 0;
+    }
 }
