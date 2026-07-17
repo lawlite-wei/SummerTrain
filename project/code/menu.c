@@ -31,6 +31,9 @@ uint16 IPS200_BGCOLOR = RGB565_WHITE;
 /*==================== 主页面指针 ====================*/
 static menu_unit *main_page = NULL;
 
+/*==================== Flash 编辑状态 ====================*/
+static uint8  flash_status = 0;   /* 0=无, 1=显示edit, 2=显示save */
+
 /*==================== 内存分配 ====================*/
 static menu_unit *alloc_unit(void)
 {
@@ -265,6 +268,20 @@ void menu_add_inline_edit(menu_unit *page, const char *name,
     item->current_operation   = NULL;    /* 确保确认键进编辑模式 */
 }
 
+/*----------------------------------------------------------------------------
+ *  @brief      添加 Flash 可存储编辑项
+ *              确认→编辑(右下edit)，上下调值，确认→保存(save)+退出，返回→放弃+退出
+ *----------------------------------------------------------------------------*/
+void menu_add_flash_edit(menu_unit *page, const char *name,
+                         int16 *p_val, int16 step, int16 min_val, int16 max_val,
+                         uint16 flash_buf_index)
+{
+    menu_add_inline_edit(page, name, p_val, step, min_val, max_val, NULL);
+    menu_unit *item = page->enter->down;
+    item->par_set->flash_enable   = 1;
+    item->par_set->flash_buf_index = flash_buf_index;
+}
+
 /*==================== 显示函数 ====================*/
 
 static void show_current_page(void)
@@ -312,6 +329,16 @@ static void show_current_page(void)
         }
         ips200_show_string(0, DIS_Y * (prev_idx + 1), " ");
         ips200_show_string(0, DIS_Y * (cursor_idx + 1), MOUSE_LOOK);
+    }
+
+    /* Flash 状态提示 */
+    if (flash_status == 1)
+        ips200_show_string(180, 288, "edit");
+    else if (flash_status == 2) {
+        ips200_show_string(180, 288, "save");
+        flash_status = 0;   /* save 只显示一帧 */
+    } else {
+        ips200_show_string(180, 288, "    ");
     }
 }
 
@@ -392,25 +419,49 @@ static void key_read(void)
     }
 }
 
-/*==================== 原地编辑项指针（前向声明） ====================*/
+/*==================== Motor 子页相关（show_process 需要引用） ====================*/
 static menu_unit *pwm_L_item;
 static menu_unit *pwm_R_item;
+static menu_unit *motor_page;
+static int16     pwm_L_val = 0;
+static int16     pwm_R_val = 0;
+
+/*==================== Flash 常量 ====================*/
+#define PID_FLASH_SECTOR    127
+#define PID_FLASH_PAGE      3
+
+static void flash_save_value(uint16 buf_idx, int16 val)
+{
+    flash_read_page_to_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
+    flash_union_buffer[buf_idx].int16_type = val;
+    flash_write_page_from_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
+}
+
+static void flash_load_params(int16 *vals, uint8 count)
+{
+    flash_read_page_to_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
+    for (uint8 i = 0; i < count; i++) {
+        int16 v = flash_union_buffer[i].int16_type;
+        /* 未初始化 Flash 值为 0xFFFF → int16 为 -1，默认用 0 */
+        vals[i] = (v == -1) ? 0 : v;
+    }
+}
 
 /*==================== 主循环 ====================*/
 
 void show_process(void *parameter)
 {
-    /* 原地编辑状态（static 保持跨调用持久） */
     static uint8      editing    = 0;
     static int16     *edit_val   = NULL;
     static int16      edit_step;
     static menu_unit *edit_item  = NULL;
     static char       edit_base[STR_LEN_MAX];
+    static uint8      flash_edit = 0;
+    static int16      flash_orig_val;
 
-    /* 1. 读取按键 */
     key_read();
 
-    /* ---- 编辑模式：上下调值，不回页面 ---- */
+    /* ---- 编辑模式 ---- */
     if (editing) {
         int16  edit_max = edit_item->par_set->max_val;
         int16  edit_min = edit_item->par_set->min_val;
@@ -429,9 +480,24 @@ void show_process(void *parameter)
             sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
             need_full_redraw = 1;
         } else if (button1 == 1) {
+            /* 返回：Flash项恢复原值，普通项直接退出 */
+            if (flash_edit) {
+                *edit_val = flash_orig_val;
+                sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
+            }
             editing     = 0;
+            flash_edit  = 0;
+            flash_status = 0;
             edit_val    = NULL;
             edit_item   = NULL;
+            need_full_redraw = 1;
+        } else if (button2 == 1 && flash_edit) {
+            /* Flash项：确认 → 保存 */
+            flash_save_value(edit_item->par_set->flash_buf_index, *edit_val);
+            flash_orig_val = *edit_val;
+            flash_status = 2;
+            editing      = 0;
+            flash_edit   = 0;
             need_full_redraw = 1;
         }
 
@@ -443,6 +509,9 @@ void show_process(void *parameter)
 
     /* ---- 普通模式 ---- */
     if (!(button1 || button2 || button3 || button4)) {
+        /* 响应异步重绘请求（如 imu_menu_update 更新了数值） */
+        if (need_full_redraw)
+            show_current_page();
         return;
     }
 
@@ -453,6 +522,13 @@ void show_process(void *parameter)
         /* 主页面不响应返回键：p_unit 在主页面上则忽略 */
         if (!(p_unit->back == main_page || p_unit == main_page)) {
             if (!p_unit->is_title) {
+                /* 退出 Motor 子页时停转电机 */
+                if (p_unit->back == motor_page) {
+                    motor_set_pwm(DIR_L, PWM_L, 0);
+                    motor_set_pwm(DIR_R, PWM_R, 0);
+                    pwm_L_val = 0;
+                    pwm_R_val = 0;
+                }
                 p_unit = p_unit->back;
                 if (p_unit->is_title && p_unit != main_page)
                     p_unit = p_unit->back;
@@ -476,6 +552,12 @@ void show_process(void *parameter)
                 strcpy(edit_base, p_unit->name);
                 char *c = strchr(edit_base, ':');
                 if (c) *c = '\0';
+                /* Flash项：记录原始值，显示edit */
+                if (p_unit->par_set->flash_enable) {
+                    flash_edit = 1;
+                    flash_orig_val = *edit_val;
+                    flash_status = 1;
+                }
             }
         } else {
             p_unit = p_unit->enter;
@@ -499,22 +581,39 @@ void show_process(void *parameter)
 static menu_unit *debug_page;
 static menu_unit *pid_page;
 static menu_unit *camera_page;
-static menu_unit *motor_page;
+static menu_unit *speed_pid_page;
+static menu_unit *track_pid_page;
 
-/* PWM 当前值 & 变更回调 */
-static int16 pwm_L_val = 0;
-static int16 pwm_R_val = 0;
+/* PID 变量（从 Flash 加载初始值） */
+static int16 speed_Kp, speed_Ki, speed_Kd;
+static int16 track_Kp, track_Ki, track_Kd;
+
+/* Flash 缓冲区索引 */
+#define FIDX_SPEED_KP   0
+#define FIDX_SPEED_KI   1
+#define FIDX_SPEED_KD   2
+#define FIDX_TRACK_KP   3
+#define FIDX_TRACK_KI   4
+#define FIDX_TRACK_KD   5
 
 static void pwm_L_on_change(int16 val) { motor_set_pwm(DIR_L, PWM_L, (uint32)val); }
 static void pwm_R_on_change(int16 val) { motor_set_pwm(DIR_R, PWM_R, (uint32)val); }
 
 static void build_menu_tree(void)
 {
+    /* 从 Flash 加载 PID 参数 */
+    int16 pid_vals[6];
+    flash_load_params(pid_vals, 6);
+    speed_Kp = pid_vals[FIDX_SPEED_KP]; speed_Ki = pid_vals[FIDX_SPEED_KI]; speed_Kd = pid_vals[FIDX_SPEED_KD];
+    track_Kp = pid_vals[FIDX_TRACK_KP]; track_Ki = pid_vals[FIDX_TRACK_KI]; track_Kd = pid_vals[FIDX_TRACK_KD];
+
     main_page   = menu_create_page("======MAIN======");
     debug_page  = menu_create_page("--Debug--");
     pid_page    = menu_create_page("--PID--");
     camera_page = menu_create_page("--Camera--");
     motor_page  = menu_create_page("--Motor--");
+    speed_pid_page = menu_create_page("Speed PID");
+    track_pid_page = menu_create_page("Track PID");
 
     /* Motor 子页 : 原地编辑项 */
     menu_add_inline_edit(motor_page, "pwm_L", &pwm_L_val, 50, -10000, 10000, pwm_L_on_change);
@@ -522,23 +621,33 @@ static void build_menu_tree(void)
     pwm_L_item = motor_page->enter;
     pwm_R_item = pwm_L_item->up;
 
+    /* Speed PID 子页 : Kp(±5), Ki(±2), Kd(±2) */
+    menu_add_flash_edit(speed_pid_page, "Kp", &speed_Kp, 5,  -100, 300, FIDX_SPEED_KP);
+    menu_add_flash_edit(speed_pid_page, "Ki", &speed_Ki, 2,  -50, 100, FIDX_SPEED_KI);
+    menu_add_flash_edit(speed_pid_page, "Kd", &speed_Kd, 2,  -50, 100, FIDX_SPEED_KD);
+
+    /* Track PID 子页 : Kp(±5), Ki(±2), Kd(±2) */
+    menu_add_flash_edit(track_pid_page, "Kp", &track_Kp, 5,  -100, 300, FIDX_TRACK_KP);
+    menu_add_flash_edit(track_pid_page, "Ki", &track_Ki, 2,  -50, 100, FIDX_TRACK_KI);
+    menu_add_flash_edit(track_pid_page, "Kd", &track_Kd, 2,  -50, 100, FIDX_TRACK_KD);
+
     /* Debug 子页 */
     menu_add_submenu(debug_page, "motor",   motor_page);
     menu_add_function(debug_page, "encoder", encoder_test);
-    menu_add_function(debug_page, "imu",     NULL_FUN);
+    menu_add_function(debug_page, "IMU",     imu_test);
 
     /* PID 子页 */
-    menu_add_function(pid_page, "speed_pid",  NULL_FUN);
-    menu_add_function(pid_page, "track_pid",  NULL_FUN);
+    menu_add_submenu(pid_page, "speed_pid", speed_pid_page);
+    menu_add_submenu(pid_page, "track_pid", track_pid_page);
 
     /* Camera 子页 */
     menu_add_function(camera_page, "gary",     show_gary);
     menu_add_function(camera_page, "binarize", show_binarize);
-
+	
     /* 主页 */
     menu_add_submenu(main_page, "Debug",  debug_page);
     menu_add_submenu(main_page, "PID",    pid_page);
-    menu_add_function(main_page, "Start", start_car);
+    menu_add_function(main_page, "Start", track_line);
     menu_add_submenu(main_page, "Camera", camera_page);
 }
 
@@ -587,8 +696,3 @@ void NULL_FUN(void)
 {
 }
 
-/*==================== Start 功能 ====================*/
-void start_car(void)
-{
-    /* TODO: 发车逻辑 */
-}

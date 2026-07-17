@@ -35,7 +35,12 @@ int16 longest_white_right[2];               // 右边的最长白列，0为长�
 int16 left_lost_flag[MT9V03X_H];            // 左丢线数组
 int16 right_lost_flag[MT9V03X_H];           // 右丢线数组
 
-static uint8 binary_image[DEAL_IMAGE_H][DEAL_IMAGE_W];  // 二值化图像缓冲（最长白列算法用）
+uint8 binary_image[DEAL_IMAGE_H][DEAL_IMAGE_W];  // 二值化图像缓冲（最长白列算法用）
+
+// 默认视野范围
+uint8 err_start_point = 20; //误差起始点
+uint8 err_end_point = 90;   //误差终止点
+
 
 /*
  *  灰度显示：持续刷新摄像头灰度图像，按下 button1(返回) 退出
@@ -403,7 +408,7 @@ void longest_white_sweepline(uint8 image[DEAL_IMAGE_H][DEAL_IMAGE_W])
 }
 
 /*
- *  大律法自适应阈值
+ *  大津法自适应阈值
  *  通过遍历灰度图自动计算二值化阈值，用于解决光线变化
  *  隔点采样（每2个像素取1个），计算量降至 1/4
  */
@@ -483,3 +488,32 @@ uint8 otsuThreshold(uint8 *image)
     return threshold;
 }
 
+/**
+*
+*  计算某几行的平均误差，可利用菜单调节
+*  start_point = 20
+*  end_point = 90
+*  err 误差值
+*  调节start_point和end_point来决定视野范围（50~119）
+**/
+float err_sum_average(uint8 start_point,uint8 end_point)
+{
+    //防止参数输入错误
+    if(end_point<start_point)
+    {
+        uint8 t=end_point;
+        end_point=start_point;
+        start_point=t;
+    }
+
+    if(start_point<DEAL_IMAGE_H-search_stop_line)start_point=DEAL_IMAGE_H-search_stop_line-1;//防止起点越界
+    if(end_point<DEAL_IMAGE_H-search_stop_line)end_point=DEAL_IMAGE_H-search_stop_line-2;//防止终点越界
+
+    float err=0;
+    for(int i=start_point;i<end_point;i++)
+    {
+        err+=(DEAL_IMAGE_W/2-((left_line[i]+right_line[i])>>1));//位操作等效除以2
+    }
+    err=err/(end_point-start_point);
+    return err;
+}

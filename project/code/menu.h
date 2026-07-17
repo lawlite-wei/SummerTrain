@@ -40,6 +40,8 @@ typedef struct {
     int16       min_val;        /* 原地编辑最小值 */
     int16       max_val;        /* 原地编辑最大值 */
     void        (*on_change)(int16 val); /* 值变更时回调（如更新硬件PWM） */
+    uint8       flash_enable;   /* Flash存储使能（1=需要断电保存） */
+    uint16      flash_buf_index;/* 在flash_union_buffer中的索引 */
 } param_set;
 
 /*==================== 菜单单元（双向链表节点） ====================*/
@@ -79,6 +81,9 @@ void menu_add_param(menu_unit *page, const char *name, void *p_param,
 void menu_add_inline_edit(menu_unit *page, const char *name,
                           int16 *p_val, int16 step, int16 min_val, int16 max_val,
                           void (*on_change)(int16 val));
+void menu_add_flash_edit(menu_unit *page, const char *name,
+                         int16 *p_val, int16 step, int16 min_val, int16 max_val,
+                         uint16 flash_buf_index);
 
 /* 菜单重绘请求（外部函数调用后标记需要刷新） */
 void menu_request_redraw(void);
@@ -86,7 +91,5 @@ void menu_request_redraw(void);
 /* 空函数 */
 void NULL_FUN(void);
 
-/* 用户自定义函数声明 */
-void start_car(void);
-
+/* imu数据刷新 */
 #endif

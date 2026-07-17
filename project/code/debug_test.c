@@ -1,6 +1,8 @@
 #include "debug_test.h"
 #include "motor.h"
 
+int8_t imu_init = 0;
+
 void HARDWARE_INIT(void)
 {
     /* 初始化屏幕+按键+菜单链表+摄像头初始化 */
@@ -16,9 +18,18 @@ void HARDWARE_INIT(void)
     /* 编码器初始化 */
     encoder_quad_init(ENCODER_1, ENCODER_1_A, ENCODER_1_B);
     encoder_quad_init(ENCODER_2, ENCODER_2_A, ENCODER_2_B);
+	
+	/* imu963ra初始化 */
+	if(imu963ra_init()){imu_init = 0;}
+	else{imu_init = 1;}
 
-    /* 中断初始化 */
+    /* TIM6中断初始化 */
     pit_ms_init(TIM6_PIT, 1);
+	interrupt_set_priority(TIM6_IRQn,0);
+	
+	/* TIM2中断初始化（专门来读取imu）*/
+	pit_ms_init(TIM2_PIT, 5);
+	interrupt_set_priority(TIM2_IRQn,0);
 }
 
 /*

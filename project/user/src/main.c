@@ -87,3 +87,10 @@ void pit_handler (void)
         otsu_tick = 0;
     }
 }
+
+/// imu读取中断
+void imu_pit (void)
+{ 
+	if(imu_init == 1){imu_get();}
+	else{return;}
+}

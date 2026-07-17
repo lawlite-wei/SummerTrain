@@ -54,7 +54,8 @@ void TIM1_UP_IRQHandler (void)
 void TIM2_IRQHandler (void)
 {
     // 此处编写用户代码
-
+	extern void imu_pit (void);
+    imu_pit();
     // 此处编写用户代码
     TIM2->SR &= ~TIM2->SR;                                                      // 清空中断状态
 }

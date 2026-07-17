@@ -20,6 +20,23 @@ typedef struct {
 	float OutMin;
 } PID_t;
 
+typedef struct
+{
+  float kp;
+  float kd;
+  float kp2;
+  float kd2;
+  float ek;                      
+  float ek1;                      
+  float location_sum;            
+  float out;
+  float PID_I_LIMIT_MAX;
+  float PID_OUT_LIMIT_MAX;	
+}Turn_PPDD_LocTypeDef;
+
+extern PID_t speed_pid;
+extern PID_t track_pid;
+
 void PID_Update(PID_t *p);
 
 #endif
