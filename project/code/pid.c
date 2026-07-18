@@ -66,25 +66,23 @@ float PPDD_location(float setvalue, float actualvalue, float GZ, Turn_PPDD_LocTy
 *   主要调节k,d
 */ 
 PID_t speed_pid={
-	.Kp = 300,
+	.Kp = 50,
 	.Ki = 0,
-	.Kd = 50,
+	.Kd = 20,
 	
-	.OutMax = 3000,
-	.OutMin = -3000,
+	.OutMax = 1500,
+	.OutMin = -1000,
 };
 
 /*
 *	寻迹pid控制
 *   主要调节k,d
 */
-PID_t track_pid={
-	.Kp = 300,
-	.Ki = 0,
-	.Kd = 50,
+Turn_PPDD_LocTypeDef track_pid = {
+	.kp = 70,
+	.kd = 30,
+	.kp2 = 1.8,
+	.kd2 = 0.9,
 	
-	.Target = 0,
-	.Actual = 0,
-	.OutMax = 3000,
-	.OutMin = -3000,
+	.PID_OUT_LIMIT_MAX = 2000,
 };

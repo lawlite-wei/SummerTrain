@@ -3,7 +3,8 @@
 
 #include "zf_common_headfile.h"
 
-typedef struct {
+typedef struct 
+{
 	float Target;
 	float Actual;
 	float Out;
@@ -35,8 +36,9 @@ typedef struct
 }Turn_PPDD_LocTypeDef;
 
 extern PID_t speed_pid;
-extern PID_t track_pid;
+extern Turn_PPDD_LocTypeDef track_pid;
 
 void PID_Update(PID_t *p);
+float PPDD_location(float setvalue, float actualvalue, float GZ, Turn_PPDD_LocTypeDef *PPDD);
 
 #endif

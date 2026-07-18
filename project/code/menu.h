@@ -83,7 +83,8 @@ void menu_add_inline_edit(menu_unit *page, const char *name,
                           void (*on_change)(int16 val));
 void menu_add_flash_edit(menu_unit *page, const char *name,
                          int16 *p_val, int16 step, int16 min_val, int16 max_val,
-                         uint16 flash_buf_index);
+                         uint16 flash_buf_index,
+                         void (*on_change)(int16 val));
 
 /* 菜单重绘请求（外部函数调用后标记需要刷新） */
 void menu_request_redraw(void);

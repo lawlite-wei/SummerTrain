@@ -1,10 +1,10 @@
 #include "encoder.h"
 
-int16_t speed_L = 0;
-int16_t speed_R = 0;
+volatile int16_t speed_L = 0;
+volatile int16_t speed_R = 0;
 
-int32_t distance_L = 0;
-int32_t distance_R = 0;
+volatile int32_t distance_L = 0;
+volatile int32_t distance_R = 0;
 
 /*
  *  编码器数据更新（在 pit_handler 中周期调用）

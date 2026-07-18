@@ -11,10 +11,10 @@
 #define ENCODER_2_A                 (TIM4_ENCODER_CH1_B6)
 #define ENCODER_2_B                 (TIM4_ENCODER_CH2_B7)
 
-extern int16_t speed_L;
-extern int16_t speed_R;
-extern int32_t distance_L;
-extern int32_t distance_R;
+extern volatile int16_t speed_L;
+extern volatile int16_t speed_R;
+extern volatile int32_t distance_L;
+extern volatile int32_t distance_R;
 
 void encoder_update(void);
 

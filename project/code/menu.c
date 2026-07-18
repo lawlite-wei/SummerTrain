@@ -274,11 +274,12 @@ void menu_add_inline_edit(menu_unit *page, const char *name,
  *----------------------------------------------------------------------------*/
 void menu_add_flash_edit(menu_unit *page, const char *name,
                          int16 *p_val, int16 step, int16 min_val, int16 max_val,
-                         uint16 flash_buf_index)
+                         uint16 flash_buf_index,
+                         void (*on_change)(int16 val))
 {
-    menu_add_inline_edit(page, name, p_val, step, min_val, max_val, NULL);
+    menu_add_inline_edit(page, name, p_val, step, min_val, max_val, on_change);
     menu_unit *item = page->enter->down;
-    item->par_set->flash_enable   = 1;
+    item->par_set->flash_enable    = 1;
     item->par_set->flash_buf_index = flash_buf_index;
 }
 
@@ -584,28 +585,56 @@ static menu_unit *camera_page;
 static menu_unit *speed_pid_page;
 static menu_unit *track_pid_page;
 
-/* PID 变量（从 Flash 加载初始值） */
+/* PID 存储变量（Flash ↔ 菜单双向同步，on_change 写入实际 PID 结构体） */
 static int16 speed_Kp, speed_Ki, speed_Kd;
-static int16 track_Kp, track_Ki, track_Kd;
+static int16 track_kp, track_kd, track_kp2, track_kd2;  /* kp2/kd2 ×100 存储 */
 
 /* Flash 缓冲区索引 */
 #define FIDX_SPEED_KP   0
 #define FIDX_SPEED_KI   1
 #define FIDX_SPEED_KD   2
 #define FIDX_TRACK_KP   3
-#define FIDX_TRACK_KI   4
-#define FIDX_TRACK_KD   5
+#define FIDX_TRACK_KD   4
+#define FIDX_TRACK_KP2  5
+#define FIDX_TRACK_KD2  6
 
 static void pwm_L_on_change(int16 val) { motor_set_pwm(DIR_L, PWM_L, (uint32)val); }
 static void pwm_R_on_change(int16 val) { motor_set_pwm(DIR_R, PWM_R, (uint32)val); }
 
+/* PID 值变更时同步到实际结构体 */
+static void sp_Kp_cb(int16 v) { speed_pid.Kp = (float)v; }
+static void sp_Ki_cb(int16 v) { speed_pid.Ki = (float)v; }
+static void sp_Kd_cb(int16 v) { speed_pid.Kd = (float)v; }
+static void tp_kp_cb(int16 v) { track_pid.kp  = (float)v; }
+static void tp_kd_cb(int16 v) { track_pid.kd  = (float)v; }
+static void tp_kp2_cb(int16 v) { track_pid.kp2 = v / 100.0f; }
+static void tp_kd2_cb(int16 v) { track_pid.kd2 = v / 100.0f; }
+
 static void build_menu_tree(void)
 {
-    /* 从 Flash 加载 PID 参数 */
-    int16 pid_vals[6];
-    flash_load_params(pid_vals, 6);
-    speed_Kp = pid_vals[FIDX_SPEED_KP]; speed_Ki = pid_vals[FIDX_SPEED_KI]; speed_Kd = pid_vals[FIDX_SPEED_KD];
-    track_Kp = pid_vals[FIDX_TRACK_KP]; track_Ki = pid_vals[FIDX_TRACK_KI]; track_Kd = pid_vals[FIDX_TRACK_KD];
+    /* 从 Flash 加载 PID 参数（首次上电用 pid.c 中的默认值） */
+    int16 pid_vals[7];
+    flash_load_params(pid_vals, 7);
+    speed_Kp  = (pid_vals[FIDX_SPEED_KP]  != -1) ? pid_vals[FIDX_SPEED_KP]  : (int16)speed_pid.Kp;
+    speed_Ki  = (pid_vals[FIDX_SPEED_KI]  != -1) ? pid_vals[FIDX_SPEED_KI]  : (int16)speed_pid.Ki;
+    speed_Kd  = (pid_vals[FIDX_SPEED_KD]  != -1) ? pid_vals[FIDX_SPEED_KD]  : (int16)speed_pid.Kd;
+    track_kp  = (pid_vals[FIDX_TRACK_KP]  != -1) ? pid_vals[FIDX_TRACK_KP]  : (int16)track_pid.kp;
+    track_kd  = (pid_vals[FIDX_TRACK_KD]  != -1) ? pid_vals[FIDX_TRACK_KD]  : (int16)track_pid.kd;
+    track_kp2 = (pid_vals[FIDX_TRACK_KP2] != -1) ? pid_vals[FIDX_TRACK_KP2] : (int16)(track_pid.kp2 * 100);
+    track_kd2 = (pid_vals[FIDX_TRACK_KD2] != -1) ? pid_vals[FIDX_TRACK_KD2] : (int16)(track_pid.kd2 * 100);
+
+    /* 首次上电时把默认值写入 Flash */
+    if (pid_vals[0] == -1) {
+        pid_vals[FIDX_SPEED_KP] = speed_Kp;  pid_vals[FIDX_SPEED_KI] = speed_Ki;  pid_vals[FIDX_SPEED_KD] = speed_Kd;
+        pid_vals[FIDX_TRACK_KP] = track_kp;  pid_vals[FIDX_TRACK_KD] = track_kd;
+        pid_vals[FIDX_TRACK_KP2] = track_kp2; pid_vals[FIDX_TRACK_KD2] = track_kd2;
+        flash_read_page_to_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
+        for (uint8 i = 0; i < 7; i++) flash_union_buffer[i].int16_type = pid_vals[i];
+        flash_write_page_from_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
+    }
+    /* 同步到实际 PID 结构体 */
+    sp_Kp_cb(speed_Kp); sp_Ki_cb(speed_Ki); sp_Kd_cb(speed_Kd);
+    tp_kp_cb(track_kp); tp_kd_cb(track_kd); tp_kp2_cb(track_kp2); tp_kd2_cb(track_kd2);
 
     main_page   = menu_create_page("======MAIN======");
     debug_page  = menu_create_page("--Debug--");
@@ -615,21 +644,22 @@ static void build_menu_tree(void)
     speed_pid_page = menu_create_page("Speed PID");
     track_pid_page = menu_create_page("Track PID");
 
-    /* Motor 子页 : 原地编辑项 */
+    /* Motor 子页 */
     menu_add_inline_edit(motor_page, "pwm_L", &pwm_L_val, 50, -10000, 10000, pwm_L_on_change);
     menu_add_inline_edit(motor_page, "pwm_R", &pwm_R_val, 50, -10000, 10000, pwm_R_on_change);
     pwm_L_item = motor_page->enter;
     pwm_R_item = pwm_L_item->up;
 
-    /* Speed PID 子页 : Kp(±5), Ki(±2), Kd(±2) */
-    menu_add_flash_edit(speed_pid_page, "Kp", &speed_Kp, 5,  -100, 300, FIDX_SPEED_KP);
-    menu_add_flash_edit(speed_pid_page, "Ki", &speed_Ki, 2,  -50, 100, FIDX_SPEED_KI);
-    menu_add_flash_edit(speed_pid_page, "Kd", &speed_Kd, 2,  -50, 100, FIDX_SPEED_KD);
+    /* Speed PID : Kp(±5), Ki(±2), Kd(±2) — 变更实时写入 speed_pid 结构体 */
+    menu_add_flash_edit(speed_pid_page, "Kp", &speed_Kp, 5,  -50, 200, FIDX_SPEED_KP, sp_Kp_cb);
+    menu_add_flash_edit(speed_pid_page, "Ki", &speed_Ki, 2,  -20, 50,  FIDX_SPEED_KI, sp_Ki_cb);
+    menu_add_flash_edit(speed_pid_page, "Kd", &speed_Kd, 2,  -20, 50,  FIDX_SPEED_KD, sp_Kd_cb);
 
-    /* Track PID 子页 : Kp(±5), Ki(±2), Kd(±2) */
-    menu_add_flash_edit(track_pid_page, "Kp", &track_Kp, 5,  -100, 300, FIDX_TRACK_KP);
-    menu_add_flash_edit(track_pid_page, "Ki", &track_Ki, 2,  -50, 100, FIDX_TRACK_KI);
-    menu_add_flash_edit(track_pid_page, "Kd", &track_Kd, 2,  -50, 100, FIDX_TRACK_KD);
+    /* Track PID : kp(±5), kd(±2), kp2(×100, ±5), kd2(×100, ±5) */
+    menu_add_flash_edit(track_pid_page, "kp",  &track_kp,  5, -50, 100,  FIDX_TRACK_KP,  tp_kp_cb);
+    menu_add_flash_edit(track_pid_page, "kd",  &track_kd,  2, -10, 500,  FIDX_TRACK_KD,  tp_kd_cb);
+    menu_add_flash_edit(track_pid_page, "kp2", &track_kp2, 5, -10, 100, FIDX_TRACK_KP2, tp_kp2_cb);
+    menu_add_flash_edit(track_pid_page, "kd2", &track_kd2, 5, -10, 1000, FIDX_TRACK_KD2, tp_kd2_cb);
 
     /* Debug 子页 */
     menu_add_submenu(debug_page, "motor",   motor_page);

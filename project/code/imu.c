@@ -1,14 +1,18 @@
 #include "imu.h"
 
+int16_t gz;
+
+// imu读取函数
 void imu_get(void)
 {
     imu963ra_get_acc();
     imu963ra_get_gyro();
 }
 
+// gz去零漂
 void gz_filter(void)
 {
-	
+	gz = imu963ra_gyro_z + 5;   // 5为零漂
 }
 
 /*

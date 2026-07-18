@@ -43,8 +43,6 @@
 
 // **************************** 代码区域 ****************************
 
-
-
 int main (void)
 {
     clock_init(SYSTEM_CLOCK_120M);                                              // 初始化芯片时钟 工作频率为 120MHz
@@ -56,7 +54,7 @@ int main (void)
     {
         key_scanner();           // 逐飞库按键扫描（每周期调用）
         show_process(NULL);      // 菜单主循环（处理按键/导航/显示）
-        system_delay_ms(10);     // ~100Hz 刷新
+        system_delay_ms(10);     
     }
     
 }
@@ -70,27 +68,32 @@ int main (void)
 void pit_handler (void)
 {
     /* 编码器数据更新（每 10ms 调用一次，PIT 周期 1ms） */
-    static uint16 encoder_tick = 0;
-    if (++encoder_tick >= 10) {
-        encoder_tick = 0;
-        encoder_update();
-    }
+//    static uint16 encoder_tick = 0;
+//    if (++encoder_tick >= 10) {
+//        encoder_tick = 0;
+//        encoder_update();
+//    }
 
-    /* 大津法阈值更新请求（每 5ms，仅在摄像头显示模式下生效） */
-    static uint16 otsu_tick = 0;
-    if (otsu_enable) {
-        if (++otsu_tick >= 5) {
-            otsu_tick = 0;
-            otsu_update_flag = 1;
-        }
-    } else {
-        otsu_tick = 0;
-    }
+//    /* 大津法阈值更新请求（每 5ms，仅在摄像头显示模式下生效） */
+//    static uint16 otsu_tick = 0;
+//    if (otsu_enable) {
+//        if (++otsu_tick >= 5) {
+//            otsu_tick = 0;
+//            otsu_update_flag = 1;
+//        }
+//    } else {
+//        otsu_tick = 0;
+//    }
 }
 
 /// imu读取中断
 void imu_pit (void)
 { 
-	if(imu_init == 1){imu_get();}
+	if(imu_init == 1)
+	{
+		imu_get();
+		/* gz值更新 */
+		gz_filter();
+	}
 	else{return;}
 }
