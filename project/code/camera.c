@@ -43,6 +43,13 @@ uint8 binary_image[DEAL_IMAGE_H][DEAL_IMAGE_W];  // 二值化图像缓冲（最�
 uint8 err_start_point = 15; //误差起始点
 uint8 err_end_point = 95;   //误差终止点
 
+//  斑马线相关变量判定
+uint8 zebra_count_total = 0;      // 斑马线总计数
+uint8 zebra_detect_state = 0;     // 斑马线检测状态 0:未检测 1:检测中 2:已通过
+uint16 zebra_clear_timer = 0;     // 斑马线清除计时器
+uint8 zebra_last_flag = 0;        // 上次斑马线标志
+uint8 zebra_flag = 0;             // 斑马线标志位
+
 const uint8 road_wide[DEAL_IMAGE_H]=
 {
 41,42,43,45,46,47,49,49,51,53,
@@ -98,6 +105,7 @@ void show_gary(void)
             boundary_line_init();
             longest_white_sweepline(binary_image);
             show_boundary_line();
+            show_saidao_flag(); /* 右下角元素类型 */
 
             mt9v03x_finish_flag = 0;
         }
@@ -110,7 +118,7 @@ void show_gary(void)
         }
     }
 
-//    otsu_enable = 0;  /* 退出摄像头显示，停止大津法更新 */
+//    otsu_enable = 0;
 }
 
 /*
@@ -148,6 +156,7 @@ void show_binarize(void)
             boundary_line_init();
             longest_white_sweepline(binary_image);
             show_boundary_line();
+            show_saidao_flag(); /* 右下角元素类型 */
 
             mt9v03x_finish_flag = 0;
         }
@@ -160,7 +169,7 @@ void show_binarize(void)
         }
     }
 
-//    otsu_enable = 0;  /* 退出摄像头显示，停止大津法更新 */
+//    otsu_enable = 0;
 }
 
 /*
@@ -273,13 +282,13 @@ uint8 image_out_of_bounds(unsigned char in_image[DEAL_IMAGE_H][DEAL_IMAGE_W])
     int sum = 0;
     for(int i=0;i<10; i++)
     {
-        for(int j=0;j<3;j++)
+        for(int j=0;j<5;j++)
         {
             sum+=in_image[DEAL_IMAGE_H-1-j][DEAL_IMAGE_W/2-5+i];
         }
     }
     int average = sum / 30;    // 计算平均值
-    if(average < 64){return 1;}
+    if(average < 240){return 1;}
     else{return 0;}
 }
 
@@ -898,8 +907,7 @@ uint8 straight_judge(void)
 }
 
 /**
-*
-* @brief  判断十字路口并补线
+* 判断十字路口并补线
 **/
 void cross_judge(void)
 {
@@ -943,4 +951,90 @@ void cross_judge(void)
             } 
         }
     }
+}
+
+/**
+* 斑马线判定
+**/
+void zebra_judge_multi(void)
+{
+    uint8 zebra_count = 0;
+    uint8 zebra_detected = 0;  // 当前帧是否检测到斑马线
+    
+    // 基本条件检查
+    if(longest_white_left[1] > 20 && longest_white_right[1] < DEAL_IMAGE_W - 20 &&
+       longest_white_right[1] > 20 && longest_white_left[1] < DEAL_IMAGE_W - 20 &&
+       search_stop_line >= 110 &&
+       boundary_start_left >= DEAL_IMAGE_H - 20 &&
+       boundary_start_right >= DEAL_IMAGE_H - 20)
+    {
+        // 检测斑马线特征
+        for(int i = DEAL_IMAGE_H - 1; i >= DEAL_IMAGE_H - 3; i--) 
+        {
+            zebra_count = 0;  // 每行重新计数
+            for(int j = 0; j <= DEAL_IMAGE_W - 1 - 3; j++)
+            {
+                // 检测白黑黑模式
+                if(binary_image[i][j] == 1 && binary_image[i][j+1] == 0 && binary_image[i][j+2] == 0)
+                {
+                    zebra_count++;
+                }
+            }
+            
+            // 如果某一行的跳变次数足够多，认为检测到斑马线
+            if(zebra_count >= 8)  // 适当降低阈值提高检测率
+            {
+                zebra_detected = 1;
+                break;
+            }
+        }
+    }
+    
+    // 状态机处理斑马线识别
+    switch(zebra_detect_state)
+    {
+        case 0:  // 未检测状态
+            if(zebra_detected)
+            {
+                zebra_detect_state = 1;  // 进入检测中状态
+                zebra_clear_timer = 0;
+                zebra_flag = 1;
+                zebra_count_total++;     // 斑马线计数加1
+            }
+            else
+            {
+                zebra_flag = 0;
+            }
+            break;
+            
+        case 1:  // 检测中状态
+            if(zebra_detected)
+            {
+                zebra_flag = 1;
+                zebra_clear_timer = 0;  // 重置计时器
+            }
+            else
+            {
+                zebra_clear_timer++;
+                if(zebra_clear_timer >= 5)  // 连续5帧未检测到，进入已通过状态
+                {
+                    zebra_detect_state = 2;
+                    zebra_flag = 0;
+                    zebra_clear_timer = 0;
+                }
+            }
+            break;
+            
+        case 2:  // 已通过状态
+            zebra_flag = 0;
+            zebra_clear_timer++;
+            if(zebra_clear_timer >= 20)  // 等待20帧后恢复到未检测状态
+            {
+                zebra_detect_state = 0;
+                zebra_clear_timer = 0;
+            }
+            break;
+    }
+     
+    zebra_last_flag = zebra_flag;
 }

@@ -15,6 +15,11 @@ extern float line_err;
 extern uint8 err_start_point;
 extern uint8 err_end_point;
 extern uint8 binary_image[DEAL_IMAGE_H][DEAL_IMAGE_W];
+extern uint8 zebra_count_total;
+extern uint8 cross_flag;
+extern uint8 straight_flag;
+extern uint8 zebra_flag;
+extern uint8 circle_flag;
 
 void show_gary(void);
 void show_binarize(void);
@@ -34,6 +39,6 @@ void find_down_point(uint8 start_point,uint8 end_point);
 void find_up_point(uint8 start_point,uint8 end_point);
 uint8 straight_judge(void);
 void cross_judge(void);
-
+void zebra_judge_multi(void);
 
 #endif

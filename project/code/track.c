@@ -1,6 +1,6 @@
 #include "track.h"
 
-#define base_speed  800    // 基础pwm
+#define base_speed  1100    // 基础pwm
 
 // 巡线模式（按下Start后进入，KEY1退出）
 void track_line(void)
@@ -8,16 +8,26 @@ void track_line(void)
     int i, j;
 
 //    otsu_enable = 1;
-	
+
 	static int32_t turn_control = 0;
 
     while (1) {
         if (mt9v03x_finish_flag) {
-//            /* 大津法动态阈值更�?*/
+//            /* 大津法动态阈值更�?*/
 //            if (otsu_update_flag) {
 //                otsu_update_flag = 0;
 //                binarization_threshold = otsuThreshold((uint8 *)mt9v03x_image);
 //            }
+
+            /* 出界判断，出界则停车 */
+            if (image_out_of_bounds(mt9v03x_image)) {
+                break;
+            }
+			
+			/* 斑马线判断，两次则停车 */
+			if (zebra_count_total >= 2) {
+                break;
+            }
 
             /* 二值化 */
             for (i = 0; i < DEAL_IMAGE_H; i++) {
@@ -35,8 +45,8 @@ void track_line(void)
 
             /* PID 更新 */
             turn_control  = PPDD_location(0, line_err, gz, &track_pid);
-            
-            /* 差速输�?*/
+
+            /* 差速输�?*/
 			motor_set_pwm(DIR_L, PWM_L, base_speed + turn_control);
             motor_set_pwm(DIR_R, PWM_R, base_speed - turn_control);
 

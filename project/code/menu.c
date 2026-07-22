@@ -721,6 +721,36 @@ void menu_request_redraw(void)
     need_full_redraw = 1;
 }
 
+/*==================== 赛道元素显示 ====================*/
+/*
+ *  根据判别的元素标志位，在右下角显示类型。仅变化时更新，不刷屏。
+ */
+void show_saidao_flag(void)
+{
+    static const char *last_flag = NULL;
+    const char *flag;
+
+    /* 出界判断用灰度图像（mt9v03x_image），二值图 average 恒 < 240 */
+    if (image_out_of_bounds(mt9v03x_image))
+        flag = "out";
+    else if (cross_flag)
+        flag = "cross";
+    else if (zebra_flag)
+        flag = "zebra";
+    else if (straight_flag)
+        flag = "straight";
+    else
+        flag = "curve";
+
+    if (last_flag != flag) {
+        /* 清旧文字再写新文字，不刷全屏 */
+        if (last_flag)
+            ips200_show_string(150, 300, "        ");
+        ips200_show_string(150, 300, flag);
+        last_flag = flag;
+    }
+}
+
 /*==================== 空函数 ====================*/
 void NULL_FUN(void)
 {
