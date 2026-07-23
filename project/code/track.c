@@ -1,6 +1,6 @@
 #include "track.h"
 
-#define base_speed  1100    // 基础pwm
+#define base_speed  2000    // 基础pwm
 
 // 巡线模式（按下Start后进入，KEY1退出）
 void track_line(void)
@@ -42,9 +42,21 @@ void track_line(void)
 
             /* 计算中线误差 */
             line_err = err_sum_average(err_start_point, err_end_point);
+			
+			/* 图像环 */
+			image_pid.Target = 0;
+			image_pid.Actual = line_err;
+			PID_Update(&image_pid);
+			float target_gz = -image_pid.Out;
+			
+			/* 角速度环 */
+			gyro_pid.Target = target_gz;
+			gyro_pid.Actual = (float)real_gz;
+			PID_Update(&gyro_pid);
+			turn_control = -(int32_t)gyro_pid.Out;
 
-            /* PID 更新 */
-            turn_control  = PPDD_location(0, line_err, gz, &track_pid);
+//            /* PID 更新 */
+//            turn_control  = PPDD_location(0, line_err, gz, &track_pid);
 
             /* 差速输�?*/
 			motor_set_pwm(DIR_L, PWM_L, base_speed + turn_control);

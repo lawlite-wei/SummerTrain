@@ -40,8 +40,8 @@ int16 right_lost_flag[MT9V03X_H];           // 右丢线数组
 uint8 binary_image[DEAL_IMAGE_H][DEAL_IMAGE_W];  // 二值化图像缓冲（最长白列算法用）
 
 // 默认视野范围
-uint8 err_start_point = 15; //误差起始点
-uint8 err_end_point = 95;   //误差终止点
+uint8 err_start_point = 25; //误差起始点
+uint8 err_end_point = 90;   //误差终止点
 
 //  斑马线相关变量判定
 uint8 zebra_count_total = 0;      // 斑马线总计数
@@ -288,7 +288,7 @@ uint8 image_out_of_bounds(unsigned char in_image[DEAL_IMAGE_H][DEAL_IMAGE_W])
         }
     }
     int average = sum / 30;    // 计算平均值
-    if(average < 240){return 1;}
+    if(average < 200){return 1;}
     else{return 0;}
 }
 
@@ -433,6 +433,8 @@ void longest_white_sweepline(uint8 image[DEAL_IMAGE_H][DEAL_IMAGE_W])
     }
 
     cross_judge();//判断十字
+	
+	zebra_judge_multi();   //  判断斑马线
 
     if(straight_judge())//判断直线
     {
@@ -982,7 +984,7 @@ void zebra_judge_multi(void)
             }
             
             // 如果某一行的跳变次数足够多，认为检测到斑马线
-            if(zebra_count >= 8)  // 适当降低阈值提高检测率
+            if(zebra_count >= 4)  // 适当降低阈值提高检测率
             {
                 zebra_detected = 1;
                 break;

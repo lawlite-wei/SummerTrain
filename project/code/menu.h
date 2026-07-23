@@ -90,6 +90,8 @@ void menu_add_flash_edit(menu_unit *page, const char *name,
 void menu_request_redraw(void);
 /* 赛道元素显示（摄像头图像右下角） */
 void show_saidao_flag(void);
+/* 重置 PID Flash → pid.c 默认值 */
+void reset_pid(void);
 
 /* 空函数 */
 void NULL_FUN(void);

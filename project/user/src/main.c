@@ -92,8 +92,10 @@ void imu_pit (void)
 	if(imu_init == 1)
 	{
 		imu_get();
-		/* gz值更新 */
-		gz_filter();
+//		/* gz值更新 */
+//		gz_filter();
+		/* 角速度转换 */
+		get_real_gz();
 	}
 	else{return;}
 }

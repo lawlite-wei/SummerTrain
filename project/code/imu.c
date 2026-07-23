@@ -2,6 +2,8 @@
 
 int16_t gz;
 
+float real_gz;
+
 // imu读取函数
 void imu_get(void)
 {
@@ -14,6 +16,13 @@ void gz_filter(void)
 {
 	gz = imu963ra_gyro_z + 5;   // 5为零漂
 }
+
+// 实际角速度获取
+void get_real_gz(void)
+{
+	real_gz = imu963ra_gyro_transition(imu963ra_gyro_z/100*100);
+}
+
 
 /*
  *  IMU 6轴数据显示（Debug → imu → 进入）

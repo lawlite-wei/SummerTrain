@@ -36,6 +36,8 @@ typedef struct
 }Turn_PPDD_LocTypeDef;
 
 extern PID_t speed_pid;
+extern PID_t gyro_pid;
+extern PID_t image_pid;
 extern Turn_PPDD_LocTypeDef track_pid;
 
 void PID_Update(PID_t *p);

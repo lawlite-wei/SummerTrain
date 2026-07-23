@@ -584,10 +584,14 @@ static menu_unit *pid_page;
 static menu_unit *camera_page;
 static menu_unit *speed_pid_page;
 static menu_unit *track_pid_page;
+static menu_unit *gyro_pid_page;
+static menu_unit *image_pid_page;
 
 /* PID 存储变量（Flash ↔ 菜单双向同步，on_change 写入实际 PID 结构体） */
 static int16 speed_Kp, speed_Ki, speed_Kd;
-static int16 track_kp, track_kd, track_kp2, track_kd2;  /* kp2/kd2 ×100 存储 */
+static int16 track_kp, track_kd, track_kp2, track_kd2;
+static int16 gyro_Kp, gyro_Kd;
+static int16 image_Kp;
 
 /* Flash 缓冲区索引 */
 #define FIDX_SPEED_KP   0
@@ -597,6 +601,9 @@ static int16 track_kp, track_kd, track_kp2, track_kd2;  /* kp2/kd2 ×100 存储 
 #define FIDX_TRACK_KD   4
 #define FIDX_TRACK_KP2  5
 #define FIDX_TRACK_KD2  6
+#define FIDX_GYRO_KP    7
+#define FIDX_GYRO_KD    8
+#define FIDX_IMAGE_KP   9
 
 static void pwm_L_on_change(int16 val) { motor_set_pwm(DIR_L, PWM_L, (uint32)val); }
 static void pwm_R_on_change(int16 val) { motor_set_pwm(DIR_R, PWM_R, (uint32)val); }
@@ -609,12 +616,16 @@ static void tp_kp_cb(int16 v) { track_pid.kp  = (float)v; }
 static void tp_kd_cb(int16 v) { track_pid.kd  = (float)v; }
 static void tp_kp2_cb(int16 v) { track_pid.kp2 = v / 100.0f; }
 static void tp_kd2_cb(int16 v) { track_pid.kd2 = v / 100.0f; }
+static void gp_Kp_cb(int16 v) { gyro_pid.Kp  = (float)v; }
+static void gp_Kd_cb(int16 v) { gyro_pid.Kd  = (float)v; }
+static void ip_Kp_cb(int16 v) { image_pid.Kp = (float)v; }
 
 static void build_menu_tree(void)
 {
     /* 从 Flash 加载 PID 参数（首次上电用 pid.c 中的默认值） */
-    int16 pid_vals[7];
-    flash_load_params(pid_vals, 7);
+    #define PID_VAL_COUNT 10
+    int16 pid_vals[PID_VAL_COUNT];
+    flash_load_params(pid_vals, PID_VAL_COUNT);
     speed_Kp  = (pid_vals[FIDX_SPEED_KP]  != -1) ? pid_vals[FIDX_SPEED_KP]  : (int16)speed_pid.Kp;
     speed_Ki  = (pid_vals[FIDX_SPEED_KI]  != -1) ? pid_vals[FIDX_SPEED_KI]  : (int16)speed_pid.Ki;
     speed_Kd  = (pid_vals[FIDX_SPEED_KD]  != -1) ? pid_vals[FIDX_SPEED_KD]  : (int16)speed_pid.Kd;
@@ -622,19 +633,26 @@ static void build_menu_tree(void)
     track_kd  = (pid_vals[FIDX_TRACK_KD]  != -1) ? pid_vals[FIDX_TRACK_KD]  : (int16)track_pid.kd;
     track_kp2 = (pid_vals[FIDX_TRACK_KP2] != -1) ? pid_vals[FIDX_TRACK_KP2] : (int16)(track_pid.kp2 * 100);
     track_kd2 = (pid_vals[FIDX_TRACK_KD2] != -1) ? pid_vals[FIDX_TRACK_KD2] : (int16)(track_pid.kd2 * 100);
+    gyro_Kp  = (pid_vals[FIDX_GYRO_KP]  != -1) ? pid_vals[FIDX_GYRO_KP]  : (int16)gyro_pid.Kp;
+    gyro_Kd  = (pid_vals[FIDX_GYRO_KD]  != -1) ? pid_vals[FIDX_GYRO_KD]  : (int16)gyro_pid.Kd;
+    image_Kp = (pid_vals[FIDX_IMAGE_KP] != -1) ? pid_vals[FIDX_IMAGE_KP] : (int16)image_pid.Kp;
 
     /* 首次上电时把默认值写入 Flash */
     if (pid_vals[0] == -1) {
         pid_vals[FIDX_SPEED_KP] = speed_Kp;  pid_vals[FIDX_SPEED_KI] = speed_Ki;  pid_vals[FIDX_SPEED_KD] = speed_Kd;
         pid_vals[FIDX_TRACK_KP] = track_kp;  pid_vals[FIDX_TRACK_KD] = track_kd;
         pid_vals[FIDX_TRACK_KP2] = track_kp2; pid_vals[FIDX_TRACK_KD2] = track_kd2;
+        pid_vals[FIDX_GYRO_KP]  = gyro_Kp;   pid_vals[FIDX_GYRO_KD]  = gyro_Kd;
+        pid_vals[FIDX_IMAGE_KP] = image_Kp;
         flash_read_page_to_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
-        for (uint8 i = 0; i < 7; i++) flash_union_buffer[i].int16_type = pid_vals[i];
+        for (uint8 i = 0; i < PID_VAL_COUNT; i++) flash_union_buffer[i].int16_type = pid_vals[i];
         flash_write_page_from_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
     }
     /* 同步到实际 PID 结构体 */
     sp_Kp_cb(speed_Kp); sp_Ki_cb(speed_Ki); sp_Kd_cb(speed_Kd);
     tp_kp_cb(track_kp); tp_kd_cb(track_kd); tp_kp2_cb(track_kp2); tp_kd2_cb(track_kd2);
+    gp_Kp_cb(gyro_Kp); gp_Kd_cb(gyro_Kd);
+    ip_Kp_cb(image_Kp);
 
     main_page   = menu_create_page("======MAIN======");
     debug_page  = menu_create_page("--Debug--");
@@ -643,6 +661,8 @@ static void build_menu_tree(void)
     motor_page  = menu_create_page("--Motor--");
     speed_pid_page = menu_create_page("Speed PID");
     track_pid_page = menu_create_page("Track PID");
+    gyro_pid_page  = menu_create_page("Gyro PID");
+    image_pid_page = menu_create_page("Image PID");
 
     /* Motor 子页 */
     menu_add_inline_edit(motor_page, "pwm_L", &pwm_L_val, 50, -10000, 10000, pwm_L_on_change);
@@ -654,12 +674,20 @@ static void build_menu_tree(void)
     menu_add_flash_edit(speed_pid_page, "Kp", &speed_Kp, 5,  -50, 200, FIDX_SPEED_KP, sp_Kp_cb);
     menu_add_flash_edit(speed_pid_page, "Ki", &speed_Ki, 2,  -20, 50,  FIDX_SPEED_KI, sp_Ki_cb);
     menu_add_flash_edit(speed_pid_page, "Kd", &speed_Kd, 2,  -20, 50,  FIDX_SPEED_KD, sp_Kd_cb);
+	
 
     /* Track PID : kp(±5), kd(±2), kp2(×100, ±5), kd2(×100, ±5) */
-    menu_add_flash_edit(track_pid_page, "kp",  &track_kp,  5, -50, 100,  FIDX_TRACK_KP,  tp_kp_cb);
-    menu_add_flash_edit(track_pid_page, "kd",  &track_kd,  2, -10, 500,  FIDX_TRACK_KD,  tp_kd_cb);
+    menu_add_flash_edit(track_pid_page, "kp",  &track_kp,  50, -1000, 1000,  FIDX_TRACK_KP,  tp_kp_cb);
+    menu_add_flash_edit(track_pid_page, "kd",  &track_kd,  20, -1000, 1000,  FIDX_TRACK_KD,  tp_kd_cb);
     menu_add_flash_edit(track_pid_page, "kp2", &track_kp2, 5, -10, 100, FIDX_TRACK_KP2, tp_kp2_cb);
     menu_add_flash_edit(track_pid_page, "kd2", &track_kd2, 5, -10, 1000, FIDX_TRACK_KD2, tp_kd2_cb);
+
+    /* Gyro PID : Kp(±2), Kd(±2) */
+    menu_add_flash_edit(gyro_pid_page, "Kp", &gyro_Kp, 1, -100, 100, FIDX_GYRO_KP, gp_Kp_cb);
+    menu_add_flash_edit(gyro_pid_page, "Kd", &gyro_Kd, 1, -100, 100, FIDX_GYRO_KD, gp_Kd_cb);
+
+    /* Image PID : Kp(±2) */
+    menu_add_flash_edit(image_pid_page, "Kp", &image_Kp, 1, -100, 100, FIDX_IMAGE_KP, ip_Kp_cb);
 
     /* Debug 子页 */
     menu_add_submenu(debug_page, "motor",   motor_page);
@@ -669,6 +697,9 @@ static void build_menu_tree(void)
     /* PID 子页 */
     menu_add_submenu(pid_page, "speed_pid", speed_pid_page);
     menu_add_submenu(pid_page, "track_pid", track_pid_page);
+    menu_add_submenu(pid_page, "gyro_pid",  gyro_pid_page);
+    menu_add_submenu(pid_page, "image_pid", image_pid_page);
+    menu_add_function(pid_page, "Reset PID", reset_pid);
 
     /* Camera 子页 */
     menu_add_function(camera_page, "gary",     show_gary);
@@ -751,8 +782,77 @@ void show_saidao_flag(void)
     }
 }
 
+/*==================== 更新页面条目名（值变化后同步显示） ====================*/
+static void update_page_item_names(menu_unit *page)
+{
+    menu_unit *item = page->enter;
+    if (!item) return;
+    do {
+        if (item->par_set && item->par_set->p_par) {
+            int16 val = *(int16 *)item->par_set->p_par;
+            char base[STR_LEN_MAX];
+            strcpy(base, item->name);
+            char *c = strchr(base, ':');
+            if (c) *c = '\0';
+            sprintf(item->name, "%s: %d", base, val);
+        }
+        item = item->up;
+    } while (item != page->enter);
+}
+
+/*==================== Reset PID：清空 Flash，恢复 pid.c 默认值 ====================*/
+/* 默认值与 pid.c 同步：speed(60/0/20) track(730/420/230/150) gyro(28/30) image(22) */
+#define SPD_KP_DEF   60
+#define SPD_KI_DEF    0
+#define SPD_KD_DEF   20
+#define TRK_KP_DEF  730
+#define TRK_KD_DEF  420
+#define TRK_KP2_DEF 230   /* 2.3 × 100 */
+#define TRK_KD2_DEF 150   /* 1.5 × 100 */
+#define GYR_KP_DEF   28
+#define GYR_KD_DEF   20
+#define IMG_KP_DEF   8
+
+void reset_pid(void)
+{
+    /* 1. 擦除 Flash */
+    flash_erase_page(PID_FLASH_SECTOR, PID_FLASH_PAGE);
+
+    /* 2. 恢复硬编码默认值（不读结构体，因为结构体已被历史值覆盖） */
+    speed_Kp = SPD_KP_DEF; speed_Ki = SPD_KI_DEF; speed_Kd = SPD_KD_DEF;
+    track_kp = TRK_KP_DEF; track_kd = TRK_KD_DEF;
+    track_kp2 = TRK_KP2_DEF; track_kd2 = TRK_KD2_DEF;
+    gyro_Kp  = GYR_KP_DEF;  gyro_Kd  = GYR_KD_DEF;
+    image_Kp = IMG_KP_DEF;
+
+    /* 3. 写入 Flash */
+    int16 vals[10];
+    vals[FIDX_SPEED_KP] = speed_Kp; vals[FIDX_SPEED_KI] = speed_Ki; vals[FIDX_SPEED_KD] = speed_Kd;
+    vals[FIDX_TRACK_KP] = track_kp; vals[FIDX_TRACK_KD] = track_kd;
+    vals[FIDX_TRACK_KP2] = track_kp2; vals[FIDX_TRACK_KD2] = track_kd2;
+    vals[FIDX_GYRO_KP]  = gyro_Kp;  vals[FIDX_GYRO_KD]  = gyro_Kd;
+    vals[FIDX_IMAGE_KP] = image_Kp;
+    flash_read_page_to_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
+    for (uint8 i = 0; i < 10; i++) flash_union_buffer[i].int16_type = vals[i];
+    flash_write_page_from_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
+
+    /* 4. 同步到结构体 */
+    sp_Kp_cb(speed_Kp); sp_Ki_cb(speed_Ki); sp_Kd_cb(speed_Kd);
+    tp_kp_cb(track_kp); tp_kd_cb(track_kd); tp_kp2_cb(track_kp2); tp_kd2_cb(track_kd2);
+    gp_Kp_cb(gyro_Kp); gp_Kd_cb(gyro_Kd);
+    ip_Kp_cb(image_Kp);
+
+    /* 5. 更新菜单条目显示 */
+    update_page_item_names(speed_pid_page);
+    update_page_item_names(track_pid_page);
+    update_page_item_names(gyro_pid_page);
+    update_page_item_names(image_pid_page);
+
+    menu_request_redraw();
+}
+
 /*==================== 空函数 ====================*/
 void NULL_FUN(void)
 {
-}
 
+}
