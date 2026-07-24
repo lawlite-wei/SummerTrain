@@ -97,16 +97,33 @@ void encoder_test(void)
 {
     int16_t last_sL = 1, last_sR = 1;
     int32_t last_dL = 1, last_dR = 1;
+    int16_t last_raw1 = 1, last_raw2 = 1;
 
     ips200_clear();
     ips200_show_string(0,   0, "--Encoder--");
+    ips200_show_string(0,  16, "raw1:");
     ips200_show_string(0,  32, "speed_L:");
     ips200_show_string(0,  48, "distance_L:");
-    ips200_show_string(0,  64, "speed_R:");
-    ips200_show_string(0,  80, "distance_R:");
-    ips200_show_string(0, 112, "KEY1: back");
+    ips200_show_string(0,  64, "raw2:");
+    ips200_show_string(0,  80, "speed_R:");
+    ips200_show_string(0,  96, "distance_R:");
+    ips200_show_string(0, 128, "KEY1: back");
 
     while (1) {
+        /* 直接读原始计数器（不经 interrupt / clear，验证硬件是否有信号） */
+        int16_t raw1 = (int16_t)TIM3->CNT;
+        int16_t raw2 = (int16_t)TIM4->CNT;
+        if (last_raw1 != raw1) {
+            ips200_show_string(64, 16, "     ");
+            ips200_show_int(64, 16, raw1, 5);
+            last_raw1 = raw1;
+        }
+        if (last_raw2 != raw2) {
+            ips200_show_string(64, 64, "     ");
+            ips200_show_int(64, 64, raw2, 5);
+            last_raw2 = raw2;
+        }
+
         if (last_sL != speed_L) {
             ips200_show_string(104, 32, "     ");
             ips200_show_int(104, 32, speed_L, 5);
@@ -118,13 +135,13 @@ void encoder_test(void)
             last_dL = distance_L;
         }
         if (last_sR != speed_R) {
-            ips200_show_string(104, 64, "     ");
-            ips200_show_int(104, 64, speed_R, 5);
+            ips200_show_string(104, 80, "     ");
+            ips200_show_int(104, 80, speed_R, 5);
             last_sR = speed_R;
         }
         if (last_dR != distance_R) {
-            ips200_show_string(104, 80, "        ");
-            ips200_show_int(104, 80, distance_R, 8);
+            ips200_show_string(104, 96, "        ");
+            ips200_show_int(104, 96, distance_R, 8);
             last_dR = distance_R;
         }
 

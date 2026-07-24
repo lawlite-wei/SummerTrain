@@ -40,8 +40,8 @@ int16 right_lost_flag[MT9V03X_H];           // 右丢线数组
 uint8 binary_image[DEAL_IMAGE_H][DEAL_IMAGE_W];  // 二值化图像缓冲（最长白列算法用）
 
 // 默认视野范围
-uint8 err_start_point = 25; //误差起始点
-uint8 err_end_point = 90;   //误差终止点
+uint8 err_start_point = 24; //误差起始点
+uint8 err_end_point = 100;   //误差终止点
 
 //  斑马线相关变量判定
 uint8 zebra_count_total = 0;      // 斑马线总计数
@@ -288,7 +288,7 @@ uint8 image_out_of_bounds(unsigned char in_image[DEAL_IMAGE_H][DEAL_IMAGE_W])
         }
     }
     int average = sum / 30;    // 计算平均值
-    if(average < 200){return 1;}
+    if(average < 210){return 1;}
     else{return 0;}
 }
 
@@ -542,6 +542,9 @@ void longest_white_sweepline(uint8 image[DEAL_IMAGE_H][DEAL_IMAGE_W])
 **/
 float err_sum_average(uint8 start_point,uint8 end_point)
 {
+	
+	static float err_kp1 = 0.9f;
+	static float err_kp2 = 1.7f;
     //防止参数输入错误
     if(end_point<start_point)
     {
@@ -553,10 +556,18 @@ float err_sum_average(uint8 start_point,uint8 end_point)
     if(start_point<DEAL_IMAGE_H-search_stop_line)start_point=DEAL_IMAGE_H-search_stop_line-1;//防止起点越界
     if(end_point<DEAL_IMAGE_H-search_stop_line)end_point=DEAL_IMAGE_H-search_stop_line-2;//防止终点越界
 
+    float start_err = DEAL_IMAGE_W/2 - ((left_line[start_point]+right_line[start_point])>>1);
+    float end_err   = DEAL_IMAGE_W/2 - ((left_line[end_point-1]+right_line[end_point-1])>>1);
+    float mid_err = (start_err + end_err) / 2.0f;
+
     float err=0;
     for(int i=start_point;i<end_point;i++)
     {
-        err+=(DEAL_IMAGE_W/2-((left_line[i]+right_line[i])>>1));//位操作等效除以2
+        float single_err = DEAL_IMAGE_W/2 - ((left_line[i]+right_line[i])>>1);
+        if(single_err < mid_err)
+            err += single_err * err_kp1;
+        else
+            err += single_err * err_kp2;
     }
     err=err/(end_point-start_point);
     return err;

@@ -677,10 +677,10 @@ static void build_menu_tree(void)
 	
 
     /* Track PID : kp(±5), kd(±2), kp2(×100, ±5), kd2(×100, ±5) */
-    menu_add_flash_edit(track_pid_page, "kp",  &track_kp,  50, -1000, 1000,  FIDX_TRACK_KP,  tp_kp_cb);
-    menu_add_flash_edit(track_pid_page, "kd",  &track_kd,  20, -1000, 1000,  FIDX_TRACK_KD,  tp_kd_cb);
-    menu_add_flash_edit(track_pid_page, "kp2", &track_kp2, 5, -10, 100, FIDX_TRACK_KP2, tp_kp2_cb);
-    menu_add_flash_edit(track_pid_page, "kd2", &track_kd2, 5, -10, 1000, FIDX_TRACK_KD2, tp_kd2_cb);
+    menu_add_flash_edit(track_pid_page, "kp",  &track_kp,  10, -1000, 1000,  FIDX_TRACK_KP,  tp_kp_cb);
+    menu_add_flash_edit(track_pid_page, "kd",  &track_kd,  5, -1000, 1000,  FIDX_TRACK_KD,  tp_kd_cb);
+    menu_add_flash_edit(track_pid_page, "kp2", &track_kp2, 10, -1000, 1000, FIDX_TRACK_KP2, tp_kp2_cb);
+    menu_add_flash_edit(track_pid_page, "kd2", &track_kd2, 10, -1000, 1000, FIDX_TRACK_KD2, tp_kd2_cb);
 
     /* Gyro PID : Kp(±2), Kd(±2) */
     menu_add_flash_edit(gyro_pid_page, "Kp", &gyro_Kp, 1, -100, 100, FIDX_GYRO_KP, gp_Kp_cb);
@@ -805,13 +805,13 @@ static void update_page_item_names(menu_unit *page)
 #define SPD_KP_DEF   60
 #define SPD_KI_DEF    0
 #define SPD_KD_DEF   20
-#define TRK_KP_DEF  730
-#define TRK_KD_DEF  420
-#define TRK_KP2_DEF 230   /* 2.3 × 100 */
-#define TRK_KD2_DEF 150   /* 1.5 × 100 */
-#define GYR_KP_DEF   28
-#define GYR_KD_DEF   20
-#define IMG_KP_DEF   8
+#define TRK_KP_DEF  120
+#define TRK_KD_DEF  60
+#define TRK_KP2_DEF  50   /* 0.5× 100 */
+#define TRK_KD2_DEF  60   /* 0.6 × 100 */
+#define GYR_KP_DEF   25
+#define GYR_KD_DEF   28
+#define IMG_KP_DEF   9
 
 void reset_pid(void)
 {

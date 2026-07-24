@@ -66,12 +66,12 @@ float PPDD_location(float setvalue, float actualvalue, float GZ, Turn_PPDD_LocTy
 *   主要调节k,d   （d与抖动有关，抖动就加大d）
 */ 
 PID_t gyro_pid={
-	.Kp = 28,
+	.Kp = 25,
 	.Ki = 0,
-	.Kd = 20,
+	.Kd = 28,
 	
-	.OutMax = 6000,
-	.OutMin = -6000,
+	.OutMax = 1600,
+	.OutMin = -1600,
 };
 
 /*
@@ -79,12 +79,12 @@ PID_t gyro_pid={
 *   主要调节k   （跟转弯有关）
 */ 
 PID_t image_pid={
-	.Kp = 8.5f,
+	.Kp = 9,
 	.Ki = 0,
-	.Kd = 0,
+	.Kd = 1.5,
 	
-	.OutMax = 450,
-	.OutMin = -450,
+	.OutMax = 400,
+	.OutMin = -400,
 };
 
 /*
@@ -105,10 +105,10 @@ PID_t speed_pid={
 *   主要调节k,d
 */
 Turn_PPDD_LocTypeDef track_pid = {
-	.kp = 730,
-	.kd = 420,
-	.kp2 = 2.3,
-	.kd2 = 1.5,
+	.kp = 120,
+	.kd = 60,
+	.kp2 = 0.5,
+	.kd2 = 0.6,
 	
 	.PID_OUT_LIMIT_MAX = 7800,
 };

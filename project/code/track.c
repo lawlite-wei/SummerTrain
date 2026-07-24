@@ -1,6 +1,7 @@
 #include "track.h"
+#include <math.h>
 
-#define base_speed  2000    // 基础pwm
+#define base_speed  2200    // 基础pwm
 
 // 巡线模式（按下Start后进入，KEY1退出）
 void track_line(void)
@@ -58,9 +59,28 @@ void track_line(void)
 //            /* PID 更新 */
 //            turn_control  = PPDD_location(0, line_err, gz, &track_pid);
 
-            /* 差速输�?*/
-			motor_set_pwm(DIR_L, PWM_L, base_speed + turn_control);
-            motor_set_pwm(DIR_R, PWM_R, base_speed - turn_control);
+            /* 入弯动态降速 v1：偏差越大、速度越低 */
+			float speed_scale = 1.0f - fabsf(line_err) * 0.078f;
+//			if (speed_scale < 0.35f) speed_scale = 0.35f;
+			int32_t dyn_speed = (int32_t)(base_speed * speed_scale);
+			
+			/* 限幅 */
+			if(dyn_speed < 800){dyn_speed = 800;}
+
+//            /* 动态基础速度 v2：偏差 + 偏差变化率 联合降速
+//               入弯时 err_delta 大 → 提前刹车，解决长直道入弯漂移 */
+//            static float last_line_err = 0;
+//            float abs_err   = fabsf(line_err);
+//            float err_delta = fabsf(line_err - last_line_err);
+//            last_line_err   = line_err;
+
+//            float reduction = abs_err * 22.0f + err_delta * 45.0f;
+//            if (reduction > 1300.0f) reduction = 1300.0f;
+//            int32_t dyn_speed = base_speed - (int32_t)reduction;
+
+            /* 差速输出 */
+			motor_set_pwm(DIR_L, PWM_L, dyn_speed + turn_control);
+            motor_set_pwm(DIR_R, PWM_R, dyn_speed - turn_control);
 
             mt9v03x_finish_flag = 0;
         }

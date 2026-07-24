@@ -20,7 +20,7 @@ void gz_filter(void)
 // 实际角速度获取
 void get_real_gz(void)
 {
-	real_gz = imu963ra_gyro_transition(imu963ra_gyro_z/100*100);
+	real_gz = imu963ra_gyro_transition(imu963ra_gyro_z/10*10);
 }
 
 

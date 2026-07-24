@@ -3,7 +3,7 @@
 <title>Static Call Graph - [.\Objects\MM32F327X_G8P.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image .\Objects\MM32F327X_G8P.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6210000: Last Updated: Thu Jul 23 21:00:15 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6210000: Last Updated: Fri Jul 24 18:17:21 2026
 <BR><P>
 <H3>Maximum Stack Usage =       1120 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -382,6 +382,7 @@ Global Symbols
 <LI><a href="#[8c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;PID_Update
 <LI><a href="#[d2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;err_sum_average
 <LI><a href="#[b1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;extend_right_line
+<LI><a href="#[5d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;track_line
 <LI><a href="#[6e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_frsub
 </UL>
 
@@ -401,10 +402,12 @@ Global Symbols
 <BR><BR>[Stack]<UL><LI>Max Depth = 8<LI>Call Chain = __aeabi_fmul
 </UL>
 <BR>[Called By]<UL><LI><a href="#[8c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;PID_Update
+<LI><a href="#[d2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;err_sum_average
 <LI><a href="#[b2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;extend_left_line
 <LI><a href="#[b1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;extend_right_line
 <LI><a href="#[111]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;pwm_set_duty
 <LI><a href="#[87]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;pwm_init
+<LI><a href="#[5d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;track_line
 <LI><a href="#[98]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;build_menu_tree
 <LI><a href="#[e0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;get_real_gz
 </UL>
@@ -466,6 +469,7 @@ Global Symbols
 
 <P><STRONG><a name="[90]"></a>__aeabi_fcmpge</STRONG> (Thumb, 28 bytes, Stack size 0 bytes, fcmpge.o(.text))
 <BR><BR>[Called By]<UL><LI><a href="#[8c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;PID_Update
+<LI><a href="#[d2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;err_sum_average
 </UL>
 
 <P><STRONG><a name="[130]"></a>__aeabi_fcmpgt</STRONG> (Thumb, 28 bytes, Stack size 0 bytes, fcmpgt.o(.text))
@@ -726,10 +730,10 @@ Global Symbols
 <P><STRONG><a name="[8c]"></a>PID_Update</STRONG> (Thumb, 282 bytes, Stack size 56 bytes, pid.o(.text.PID_Update))
 <BR><BR>[Stack]<UL><LI>Max Depth = 76<LI>Call Chain = PID_Update &rArr; __aeabi_fsub &rArr; __aeabi_fadd &rArr; _float_epilogue
 </UL>
-<BR>[Calls]<UL><LI><a href="#[90]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fcmpge
-<LI><a href="#[8f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fcmple
+<BR>[Calls]<UL><LI><a href="#[8f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fcmple
 <LI><a href="#[8d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fcmpeq
 <LI><a href="#[6d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fsub
+<LI><a href="#[90]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fcmpge
 <LI><a href="#[6a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fadd
 <LI><a href="#[8e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fmul
 </UL>
@@ -886,9 +890,7 @@ Global Symbols
 <LI><a href="#[b6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_output
 <LI><a href="#[b5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_protective_handler
 </UL>
-<BR>[Called By]<UL><LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_write_register
-<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
-<LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
+<BR>[Called By]<UL><LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
 <LI><a href="#[12e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_send_ack
 <LI><a href="#[12c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_data
 <LI><a href="#[12f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_wait_ack
@@ -927,6 +929,8 @@ Global Symbols
 <LI><a href="#[f0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;spi_read_8bit_registers
 <LI><a href="#[117]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_init
 <LI><a href="#[11c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_read_register
+<LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_write_register
+<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
 </UL>
 
 <P><STRONG><a name="[b8]"></a>debug_init</STRONG> (Thumb, 50 bytes, Stack size 32 bytes, zf_common_debug.o(.text.debug_init))
@@ -965,8 +969,8 @@ Global Symbols
 <P><STRONG><a name="[c1]"></a>dl1a_get_distance</STRONG> (Thumb, 158 bytes, Stack size 24 bytes, zf_device_dl1a.o(.text.dl1a_get_distance))
 <BR><BR>[Stack]<UL><LI>Max Depth = 808<LI>Call Chain = dl1a_get_distance &rArr; soft_iic_read_8bit_registers &rArr; soft_iic_read_data &rArr; soft_iic_send_ack &rArr; debug_assert_handler &rArr; debug_output &rArr; sprintf
 </UL>
-<BR>[Calls]<UL><LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
-<LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
+<BR>[Calls]<UL><LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
+<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
 </UL>
 <BR>[Called By]<UL><LI><a href="#[83]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;dl1a_int_handler
 </UL>
@@ -1039,8 +1043,8 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[84]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HARDWARE_INIT
 </UL>
 
-<P><STRONG><a name="[58]"></a>encoder_test</STRONG> (Thumb, 450 bytes, Stack size 72 bytes, debug_test.o(.text.encoder_test))
-<BR><BR>[Stack]<UL><LI>Max Depth = 912<LI>Call Chain = encoder_test &rArr; ips200_show_int &rArr; ips200_show_string &rArr; ips200_show_char &rArr; ips200_set_region &rArr; debug_assert_handler &rArr; debug_output &rArr; sprintf
+<P><STRONG><a name="[58]"></a>encoder_test</STRONG> (Thumb, 632 bytes, Stack size 96 bytes, debug_test.o(.text.encoder_test))
+<BR><BR>[Stack]<UL><LI>Max Depth = 936<LI>Call Chain = encoder_test &rArr; ips200_show_int &rArr; ips200_show_string &rArr; ips200_show_char &rArr; ips200_set_region &rArr; debug_assert_handler &rArr; debug_output &rArr; sprintf
 </UL>
 <BR>[Calls]<UL><LI><a href="#[cc]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ips200_show_int
 <LI><a href="#[d1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;menu_request_redraw
@@ -1053,11 +1057,13 @@ Global Symbols
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> menu.o(.text.build_menu_tree)
 </UL>
-<P><STRONG><a name="[d2]"></a>err_sum_average</STRONG> (Thumb, 256 bytes, Stack size 24 bytes, camera.o(.text.err_sum_average))
-<BR><BR>[Stack]<UL><LI>Max Depth = 44<LI>Call Chain = err_sum_average &rArr; __aeabi_fadd &rArr; _float_epilogue
+<P><STRONG><a name="[d2]"></a>err_sum_average</STRONG> (Thumb, 422 bytes, Stack size 64 bytes, camera.o(.text.err_sum_average))
+<BR><BR>[Stack]<UL><LI>Max Depth = 84<LI>Call Chain = err_sum_average &rArr; __aeabi_fadd &rArr; _float_epilogue
 </UL>
-<BR>[Calls]<UL><LI><a href="#[6a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fadd
+<BR>[Calls]<UL><LI><a href="#[90]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fcmpge
+<LI><a href="#[6a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fadd
 <LI><a href="#[6f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fdiv
+<LI><a href="#[8e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fmul
 <LI><a href="#[79]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_i2f
 </UL>
 <BR>[Called By]<UL><LI><a href="#[5d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;track_line
@@ -1767,7 +1773,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[110]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;motor_set_pwm
 </UL>
 
-<P><STRONG><a name="[5a]"></a>reset_pid</STRONG> (Thumb, 518 bytes, Stack size 72 bytes, menu.o(.text.reset_pid))
+<P><STRONG><a name="[5a]"></a>reset_pid</STRONG> (Thumb, 512 bytes, Stack size 72 bytes, menu.o(.text.reset_pid))
 <BR><BR>[Stack]<UL><LI>Max Depth = 856<LI>Call Chain = reset_pid &rArr; flash_write_page_from_buffer &rArr; flash_erase_page &rArr; debug_assert_handler &rArr; debug_output &rArr; sprintf
 </UL>
 <BR>[Calls]<UL><LI><a href="#[dc]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;flash_erase_page
@@ -2043,15 +2049,17 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[82]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;dm1xa_sound_callback
 </UL>
 
-<P><STRONG><a name="[5d]"></a>track_line</STRONG> (Thumb, 422 bytes, Stack size 40 bytes, track.o(.text.track_line))
-<BR><BR>[Stack]<UL><LI>Max Depth = 792<LI>Call Chain = track_line &rArr; motor_set_pwm &rArr; pwm_set_duty &rArr; debug_assert_handler &rArr; debug_output &rArr; sprintf
+<P><STRONG><a name="[5d]"></a>track_line</STRONG> (Thumb, 500 bytes, Stack size 56 bytes, track.o(.text.track_line))
+<BR><BR>[Stack]<UL><LI>Max Depth = 808<LI>Call Chain = track_line &rArr; motor_set_pwm &rArr; pwm_set_duty &rArr; debug_assert_handler &rArr; debug_output &rArr; sprintf
 </UL>
 <BR>[Calls]<UL><LI><a href="#[8c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;PID_Update
+<LI><a href="#[6a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fadd
 <LI><a href="#[d2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;err_sum_average
 <LI><a href="#[107]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;longest_white_sweepline
 <LI><a href="#[122]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;boundary_line_init
 <LI><a href="#[129]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;image_out_of_bounds
 <LI><a href="#[d1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;menu_request_redraw
+<LI><a href="#[8e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fmul
 <LI><a href="#[d0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;key_clear_state
 <LI><a href="#[cf]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;key_get_state
 <LI><a href="#[9a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_f2iz
@@ -2222,7 +2230,7 @@ Local Symbols
 <BR>[Called By]<UL><LI><a href="#[10f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;show_current_page
 </UL>
 
-<P><STRONG><a name="[98]"></a>build_menu_tree</STRONG> (Thumb, 2154 bytes, Stack size 256 bytes, menu.o(.text.build_menu_tree))
+<P><STRONG><a name="[98]"></a>build_menu_tree</STRONG> (Thumb, 2148 bytes, Stack size 256 bytes, menu.o(.text.build_menu_tree))
 <BR><BR>[Stack]<UL><LI>Max Depth = 1040<LI>Call Chain = build_menu_tree &rArr; flash_write_page_from_buffer &rArr; flash_erase_page &rArr; debug_assert_handler &rArr; debug_output &rArr; sprintf
 </UL>
 <BR>[Calls]<UL><LI><a href="#[8e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_fmul
@@ -2472,10 +2480,10 @@ Local Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[b3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
 </UL>
-<BR>[Called By]<UL><LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_write_register
-<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
-<LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
+<BR>[Called By]<UL><LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
 <LI><a href="#[11c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_read_register
+<LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_write_register
+<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
 </UL>
 
 <P><STRONG><a name="[12b]"></a>soft_iic_send_data</STRONG> (Thumb, 296 bytes, Stack size 32 bytes, zf_driver_soft_iic.o(.text.soft_iic_send_data))
@@ -2484,10 +2492,10 @@ Local Symbols
 <BR>[Calls]<UL><LI><a href="#[12f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_wait_ack
 <LI><a href="#[b3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
 </UL>
-<BR>[Called By]<UL><LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_write_register
-<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
-<LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
+<BR>[Called By]<UL><LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
 <LI><a href="#[11c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_read_register
+<LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_write_register
+<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
 </UL>
 
 <P><STRONG><a name="[12d]"></a>soft_iic_stop</STRONG> (Thumb, 218 bytes, Stack size 24 bytes, zf_driver_soft_iic.o(.text.soft_iic_stop))
@@ -2495,10 +2503,10 @@ Local Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[b3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
 </UL>
-<BR>[Called By]<UL><LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_write_register
-<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
-<LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
+<BR>[Called By]<UL><LI><a href="#[c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_write_8bit_register
 <LI><a href="#[11c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_read_register
+<LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_write_register
+<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
 </UL>
 
 <P><STRONG><a name="[12f]"></a>soft_iic_wait_ack</STRONG> (Thumb, 248 bytes, Stack size 32 bytes, zf_driver_soft_iic.o(.text.soft_iic_wait_ack))
@@ -2517,8 +2525,8 @@ Local Symbols
 <LI><a href="#[c5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;gpio_get_level
 <LI><a href="#[b3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
 </UL>
-<BR>[Called By]<UL><LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
-<LI><a href="#[11c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_read_register
+<BR>[Called By]<UL><LI><a href="#[11c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_sccb_read_register
+<LI><a href="#[c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;soft_iic_read_8bit_registers
 </UL>
 
 <P><STRONG><a name="[12e]"></a>soft_iic_send_ack</STRONG> (Thumb, 282 bytes, Stack size 24 bytes, zf_driver_soft_iic.o(.text.soft_iic_send_ack))
