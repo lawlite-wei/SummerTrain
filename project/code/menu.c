@@ -283,6 +283,53 @@ void menu_add_flash_edit(menu_unit *page, const char *name,
     item->par_set->flash_buf_index = flash_buf_index;
 }
 
+/*----------------------------------------------------------------------------
+ *  @brief      float 版原地编辑项（显示小数，步长可为浮点）
+ *----------------------------------------------------------------------------*/
+void menu_add_inline_edit_float(menu_unit *page, const char *name,
+    float *p_val, float step, float min_val, float max_val,
+    uint8 point_num, void (*on_change)(float val))
+{
+    char display[STR_LEN_MAX];
+    if (point_num == 1)
+        sprintf(display, "%s: %.1f", name, *p_val);
+    else if (point_num == 2)
+        sprintf(display, "%s: %.2f", name, *p_val);
+    else
+        sprintf(display, "%s: %.0f", name, *p_val);
+
+    menu_add_function(page, display, NULL);
+    menu_unit *item = page->enter->down;
+
+    item->par_set = alloc_param();
+    item->par_set->p_par            = p_val;
+    item->par_set->delta            = step;
+    item->par_set->par_type         = TYPE_FLOAT;
+    item->par_set->num              = 5;
+    item->par_set->point_num        = point_num;
+    item->par_set->min_val_f        = min_val;
+    item->par_set->max_val_f        = max_val;
+    item->par_set->on_change_float  = on_change;
+    item->current_operation         = NULL;
+}
+
+/*----------------------------------------------------------------------------
+ *  @brief      float 版 Flash 可存储编辑项
+ *              flash_scale: 10=0.1精度, 100=0.01精度（Flash存为int16）
+ *----------------------------------------------------------------------------*/
+void menu_add_flash_edit_float(menu_unit *page, const char *name,
+    float *p_val, float step, float min_val, float max_val,
+    uint8 point_num, uint16 flash_buf_index, int16 flash_scale,
+    void (*on_change)(float val))
+{
+    menu_add_inline_edit_float(page, name, p_val, step, min_val, max_val,
+                               point_num, on_change);
+    menu_unit *item = page->enter->down;
+    item->par_set->flash_enable    = 1;
+    item->par_set->flash_buf_index = flash_buf_index;
+    item->par_set->flash_scale     = flash_scale;
+}
+
 /*==================== 显示函数 ====================*/
 
 static void show_current_page(void)
@@ -455,51 +502,101 @@ void show_process(void *parameter)
     static uint8      editing    = 0;
     static int16     *edit_val   = NULL;
     static int16      edit_step;
+    static float     *edit_val_f = NULL;
+    static float      edit_step_f;
+    static uint8      edit_is_float = 0;
     static menu_unit *edit_item  = NULL;
     static char       edit_base[STR_LEN_MAX];
     static uint8      flash_edit = 0;
-    static int16      flash_orig_val;
+    static int16      flash_orig_val_i;
+    static float      flash_orig_val_f;
 
     key_read();
 
     /* ---- 编辑模式 ---- */
     if (editing) {
-        int16  edit_max = edit_item->par_set->max_val;
-        int16  edit_min = edit_item->par_set->min_val;
-        void (*on_chg)(int16) = edit_item->par_set->on_change;
+        uint8  pn = edit_item->par_set->point_num;
 
-        if (button4 == 1) {
-            *edit_val += edit_step;
-            if (*edit_val > edit_max) *edit_val = edit_max;
-            if (on_chg) on_chg(*edit_val);
-            sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
-            need_full_redraw = 1;
-        } else if (button3 == 1) {
-            *edit_val -= edit_step;
-            if (*edit_val < edit_min) *edit_val = edit_min;
-            if (on_chg) on_chg(*edit_val);
-            sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
-            need_full_redraw = 1;
-        } else if (button1 == 1) {
-            /* 返回：Flash项恢复原值，普通项直接退出 */
-            if (flash_edit) {
-                *edit_val = flash_orig_val;
-                sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
+        if (edit_is_float) {
+            /* === Float 编辑 === */
+            float  edit_max_f = edit_item->par_set->max_val_f;
+            float  edit_min_f = edit_item->par_set->min_val_f;
+            void (*on_chg_f)(float) = edit_item->par_set->on_change_float;
+
+            if (button4 == 1) {
+                *edit_val_f += edit_step_f;
+                if (*edit_val_f > edit_max_f) *edit_val_f = edit_max_f;
+                if (on_chg_f) on_chg_f(*edit_val_f);
+                if (pn == 1) sprintf(edit_item->name, "%s: %.1f", edit_base, *edit_val_f);
+                else         sprintf(edit_item->name, "%s: %.2f", edit_base, *edit_val_f);
+                need_full_redraw = 1;
+            } else if (button3 == 1) {
+                *edit_val_f -= edit_step_f;
+                if (*edit_val_f < edit_min_f) *edit_val_f = edit_min_f;
+                if (on_chg_f) on_chg_f(*edit_val_f);
+                if (pn == 1) sprintf(edit_item->name, "%s: %.1f", edit_base, *edit_val_f);
+                else         sprintf(edit_item->name, "%s: %.2f", edit_base, *edit_val_f);
+                need_full_redraw = 1;
+            } else if (button1 == 1) {
+                if (flash_edit) {
+                    *edit_val_f = flash_orig_val_f;
+                    if (pn == 1) sprintf(edit_item->name, "%s: %.1f", edit_base, *edit_val_f);
+                    else         sprintf(edit_item->name, "%s: %.2f", edit_base, *edit_val_f);
+                }
+                editing       = 0;
+                flash_edit    = 0;
+                flash_status  = 0;
+                edit_is_float = 0;
+                edit_val_f    = NULL;
+                edit_item     = NULL;
+                need_full_redraw = 1;
+            } else if (button2 == 1 && flash_edit) {
+                int16 scaled = (int16)(*edit_val_f * edit_item->par_set->flash_scale);
+                flash_save_value(edit_item->par_set->flash_buf_index, scaled);
+                flash_orig_val_f = *edit_val_f;
+                flash_status = 2;
+                editing       = 0;
+                flash_edit    = 0;
+                edit_is_float = 0;
+                need_full_redraw = 1;
             }
-            editing     = 0;
-            flash_edit  = 0;
-            flash_status = 0;
-            edit_val    = NULL;
-            edit_item   = NULL;
-            need_full_redraw = 1;
-        } else if (button2 == 1 && flash_edit) {
-            /* Flash项：确认 → 保存 */
-            flash_save_value(edit_item->par_set->flash_buf_index, *edit_val);
-            flash_orig_val = *edit_val;
-            flash_status = 2;
-            editing      = 0;
-            flash_edit   = 0;
-            need_full_redraw = 1;
+        } else {
+            /* === Int16 编辑（原有逻辑） === */
+            int16  edit_max = edit_item->par_set->max_val;
+            int16  edit_min = edit_item->par_set->min_val;
+            void (*on_chg)(int16) = edit_item->par_set->on_change;
+
+            if (button4 == 1) {
+                *edit_val += edit_step;
+                if (*edit_val > edit_max) *edit_val = edit_max;
+                if (on_chg) on_chg(*edit_val);
+                sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
+                need_full_redraw = 1;
+            } else if (button3 == 1) {
+                *edit_val -= edit_step;
+                if (*edit_val < edit_min) *edit_val = edit_min;
+                if (on_chg) on_chg(*edit_val);
+                sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
+                need_full_redraw = 1;
+            } else if (button1 == 1) {
+                if (flash_edit) {
+                    *edit_val = flash_orig_val_i;
+                    sprintf(edit_item->name, "%s: %d", edit_base, *edit_val);
+                }
+                editing     = 0;
+                flash_edit  = 0;
+                flash_status = 0;
+                edit_val    = NULL;
+                edit_item   = NULL;
+                need_full_redraw = 1;
+            } else if (button2 == 1 && flash_edit) {
+                flash_save_value(edit_item->par_set->flash_buf_index, *edit_val);
+                flash_orig_val_i = *edit_val;
+                flash_status = 2;
+                editing      = 0;
+                flash_edit   = 0;
+                need_full_redraw = 1;
+            }
         }
 
         show_current_page();
@@ -546,18 +643,30 @@ void show_process(void *parameter)
                 p_unit->current_operation();
             } else if (p_unit->par_set != NULL && p_unit->par_set->p_par != NULL) {
                 /* 进入原地编辑模式 */
-                editing    = 1;
-                edit_val   = (int16 *)p_unit->par_set->p_par;
-                edit_step  = (int16)p_unit->par_set->delta;
-                edit_item  = p_unit;
+                editing = 1;
+                edit_item = p_unit;
                 strcpy(edit_base, p_unit->name);
                 char *c = strchr(edit_base, ':');
                 if (c) *c = '\0';
-                /* Flash项：记录原始值，显示edit */
-                if (p_unit->par_set->flash_enable) {
-                    flash_edit = 1;
-                    flash_orig_val = *edit_val;
-                    flash_status = 1;
+
+                if (p_unit->par_set->par_type == TYPE_FLOAT) {
+                    edit_is_float = 1;
+                    edit_val_f   = (float *)p_unit->par_set->p_par;
+                    edit_step_f  = p_unit->par_set->delta;
+                    if (p_unit->par_set->flash_enable) {
+                        flash_edit = 1;
+                        flash_orig_val_f = *edit_val_f;
+                        flash_status = 1;
+                    }
+                } else {
+                    edit_is_float = 0;
+                    edit_val   = (int16 *)p_unit->par_set->p_par;
+                    edit_step  = (int16)p_unit->par_set->delta;
+                    if (p_unit->par_set->flash_enable) {
+                        flash_edit = 1;
+                        flash_orig_val_i = *edit_val;
+                        flash_status = 1;
+                    }
                 }
             }
         } else {
@@ -588,10 +697,10 @@ static menu_unit *gyro_pid_page;
 static menu_unit *image_pid_page;
 
 /* PID 存储变量（Flash ↔ 菜单双向同步，on_change 写入实际 PID 结构体） */
-static int16 speed_Kp, speed_Ki, speed_Kd;
+static float speed_Kp, speed_Ki, speed_Kd;
 static int16 track_kp, track_kd, track_kp2, track_kd2;
-static int16 gyro_Kp, gyro_Kd;
-static int16 image_Kp;
+static float gyro_Kp, gyro_Kd;
+static float image_Kp;
 
 /* Flash 缓冲区索引 */
 #define FIDX_SPEED_KP   0
@@ -609,41 +718,51 @@ static void pwm_L_on_change(int16 val) { motor_set_pwm(DIR_L, PWM_L, (uint32)val
 static void pwm_R_on_change(int16 val) { motor_set_pwm(DIR_R, PWM_R, (uint32)val); }
 
 /* PID 值变更时同步到实际结构体 */
-static void sp_Kp_cb(int16 v) { speed_pid.Kp = (float)v; }
-static void sp_Ki_cb(int16 v) { speed_pid.Ki = (float)v; }
-static void sp_Kd_cb(int16 v) { speed_pid.Kd = (float)v; }
+static void sp_Kp_cb(float v) { speed_pid.Kp = v; }
+static void sp_Ki_cb(float v) { speed_pid.Ki = v; }
+static void sp_Kd_cb(float v) { speed_pid.Kd = v; }
 static void tp_kp_cb(int16 v) { track_pid.kp  = (float)v; }
 static void tp_kd_cb(int16 v) { track_pid.kd  = (float)v; }
 static void tp_kp2_cb(int16 v) { track_pid.kp2 = v / 100.0f; }
 static void tp_kd2_cb(int16 v) { track_pid.kd2 = v / 100.0f; }
-static void gp_Kp_cb(int16 v) { gyro_pid.Kp  = (float)v; }
-static void gp_Kd_cb(int16 v) { gyro_pid.Kd  = (float)v; }
-static void ip_Kp_cb(int16 v) { image_pid.Kp = (float)v; }
+static void gp_Kp_cb(float v) { gyro_pid.Kp  = v; }
+static void gp_Kd_cb(float v) { gyro_pid.Kd  = v; }
+static void ip_Kp_cb(float v) { image_pid.Kp = v; }
 
 static void build_menu_tree(void)
 {
-    /* 从 Flash 加载 PID 参数（首次上电用 pid.c 中的默认值） */
+    /* 从 Flash 加载 PID 参数（首次上电用 pid.c 结构体默认值） */
     #define PID_VAL_COUNT 10
     int16 pid_vals[PID_VAL_COUNT];
     flash_load_params(pid_vals, PID_VAL_COUNT);
-    speed_Kp  = (pid_vals[FIDX_SPEED_KP]  != -1) ? pid_vals[FIDX_SPEED_KP]  : (int16)speed_pid.Kp;
-    speed_Ki  = (pid_vals[FIDX_SPEED_KI]  != -1) ? pid_vals[FIDX_SPEED_KI]  : (int16)speed_pid.Ki;
-    speed_Kd  = (pid_vals[FIDX_SPEED_KD]  != -1) ? pid_vals[FIDX_SPEED_KD]  : (int16)speed_pid.Kd;
+
+    /* 辅助宏：从flash读float (×10缩放存储, -1表示未初始化) */
+    #define LOAD_FL(v, idx, def) \
+        v = (pid_vals[idx] != -1) ? ((float)pid_vals[idx] / 10.0f) : def
+
+    LOAD_FL(speed_Kp, FIDX_SPEED_KP, speed_pid.Kp);
+    LOAD_FL(speed_Ki, FIDX_SPEED_KI, speed_pid.Ki);
+    LOAD_FL(speed_Kd, FIDX_SPEED_KD, speed_pid.Kd);
     track_kp  = (pid_vals[FIDX_TRACK_KP]  != -1) ? pid_vals[FIDX_TRACK_KP]  : (int16)track_pid.kp;
     track_kd  = (pid_vals[FIDX_TRACK_KD]  != -1) ? pid_vals[FIDX_TRACK_KD]  : (int16)track_pid.kd;
     track_kp2 = (pid_vals[FIDX_TRACK_KP2] != -1) ? pid_vals[FIDX_TRACK_KP2] : (int16)(track_pid.kp2 * 100);
     track_kd2 = (pid_vals[FIDX_TRACK_KD2] != -1) ? pid_vals[FIDX_TRACK_KD2] : (int16)(track_pid.kd2 * 100);
-    gyro_Kp  = (pid_vals[FIDX_GYRO_KP]  != -1) ? pid_vals[FIDX_GYRO_KP]  : (int16)gyro_pid.Kp;
-    gyro_Kd  = (pid_vals[FIDX_GYRO_KD]  != -1) ? pid_vals[FIDX_GYRO_KD]  : (int16)gyro_pid.Kd;
-    image_Kp = (pid_vals[FIDX_IMAGE_KP] != -1) ? pid_vals[FIDX_IMAGE_KP] : (int16)image_pid.Kp;
+    LOAD_FL(gyro_Kp,  FIDX_GYRO_KP,  gyro_pid.Kp);
+    LOAD_FL(gyro_Kd,  FIDX_GYRO_KD,  gyro_pid.Kd);
+    LOAD_FL(image_Kp, FIDX_IMAGE_KP, image_pid.Kp);
+
+    #undef LOAD_FL
 
     /* 首次上电时把默认值写入 Flash */
     if (pid_vals[0] == -1) {
-        pid_vals[FIDX_SPEED_KP] = speed_Kp;  pid_vals[FIDX_SPEED_KI] = speed_Ki;  pid_vals[FIDX_SPEED_KD] = speed_Kd;
+        pid_vals[FIDX_SPEED_KP] = (int16)(speed_Kp * 10);
+        pid_vals[FIDX_SPEED_KI] = (int16)(speed_Ki * 10);
+        pid_vals[FIDX_SPEED_KD] = (int16)(speed_Kd * 10);
         pid_vals[FIDX_TRACK_KP] = track_kp;  pid_vals[FIDX_TRACK_KD] = track_kd;
         pid_vals[FIDX_TRACK_KP2] = track_kp2; pid_vals[FIDX_TRACK_KD2] = track_kd2;
-        pid_vals[FIDX_GYRO_KP]  = gyro_Kp;   pid_vals[FIDX_GYRO_KD]  = gyro_Kd;
-        pid_vals[FIDX_IMAGE_KP] = image_Kp;
+        pid_vals[FIDX_GYRO_KP]  = (int16)(gyro_Kp * 10);
+        pid_vals[FIDX_GYRO_KD]  = (int16)(gyro_Kd * 10);
+        pid_vals[FIDX_IMAGE_KP] = (int16)(image_Kp * 10);
         flash_read_page_to_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
         for (uint8 i = 0; i < PID_VAL_COUNT; i++) flash_union_buffer[i].int16_type = pid_vals[i];
         flash_write_page_from_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
@@ -670,10 +789,10 @@ static void build_menu_tree(void)
     pwm_L_item = motor_page->enter;
     pwm_R_item = pwm_L_item->up;
 
-    /* Speed PID : Kp(±5), Ki(±2), Kd(±2) — 变更实时写入 speed_pid 结构体 */
-    menu_add_flash_edit(speed_pid_page, "Kp", &speed_Kp, 5,  -50, 200, FIDX_SPEED_KP, sp_Kp_cb);
-    menu_add_flash_edit(speed_pid_page, "Ki", &speed_Ki, 2,  -20, 50,  FIDX_SPEED_KI, sp_Ki_cb);
-    menu_add_flash_edit(speed_pid_page, "Kd", &speed_Kd, 2,  -20, 50,  FIDX_SPEED_KD, sp_Kd_cb);
+    /* Speed PID : 变更实时写入 speed_pid 结构体 */
+    menu_add_flash_edit_float(speed_pid_page, "Kp", &speed_Kp, 0.5f, -50, 100, 1, FIDX_SPEED_KP, 10, sp_Kp_cb);
+    menu_add_flash_edit_float(speed_pid_page, "Ki", &speed_Ki, 0.1f, -10,  50, 1, FIDX_SPEED_KI, 10, sp_Ki_cb);
+    menu_add_flash_edit_float(speed_pid_page, "Kd", &speed_Kd, 0.1f, -10,  50, 1, FIDX_SPEED_KD, 10, sp_Kd_cb);
 	
 
     /* Track PID : kp(±5), kd(±2), kp2(×100, ±5), kd2(×100, ±5) */
@@ -682,17 +801,18 @@ static void build_menu_tree(void)
     menu_add_flash_edit(track_pid_page, "kp2", &track_kp2, 10, -1000, 1000, FIDX_TRACK_KP2, tp_kp2_cb);
     menu_add_flash_edit(track_pid_page, "kd2", &track_kd2, 10, -1000, 1000, FIDX_TRACK_KD2, tp_kd2_cb);
 
-    /* Gyro PID : Kp(±2), Kd(±2) */
-    menu_add_flash_edit(gyro_pid_page, "Kp", &gyro_Kp, 1, -100, 100, FIDX_GYRO_KP, gp_Kp_cb);
-    menu_add_flash_edit(gyro_pid_page, "Kd", &gyro_Kd, 1, -100, 100, FIDX_GYRO_KD, gp_Kd_cb);
+    /* Gyro PID : */
+    menu_add_flash_edit_float(gyro_pid_page, "Kp", &gyro_Kp, 0.5f, -50, 100, 1, FIDX_GYRO_KP, 10, gp_Kp_cb);
+    menu_add_flash_edit_float(gyro_pid_page, "Kd", &gyro_Kd, 0.5f, -50, 100, 1, FIDX_GYRO_KD, 10, gp_Kd_cb);
 
-    /* Image PID : Kp(±2) */
-    menu_add_flash_edit(image_pid_page, "Kp", &image_Kp, 1, -100, 100, FIDX_IMAGE_KP, ip_Kp_cb);
+    /* Image PID : */
+    menu_add_flash_edit_float(image_pid_page, "Kp", &image_Kp, 0.5f, 0, 100, 1, FIDX_IMAGE_KP, 10, ip_Kp_cb);
 
     /* Debug 子页 */
     menu_add_submenu(debug_page, "motor",   motor_page);
     menu_add_function(debug_page, "encoder", encoder_test);
-    menu_add_function(debug_page, "IMU",     imu_test);
+    menu_add_function(debug_page, "IMU",        imu_test);
+    menu_add_function(debug_page, "speed hold", speed_hold_test);
 
     /* PID 子页 */
     menu_add_submenu(pid_page, "speed_pid", speed_pid_page);
@@ -789,51 +909,65 @@ static void update_page_item_names(menu_unit *page)
     if (!item) return;
     do {
         if (item->par_set && item->par_set->p_par) {
-            int16 val = *(int16 *)item->par_set->p_par;
             char base[STR_LEN_MAX];
             strcpy(base, item->name);
             char *c = strchr(base, ':');
             if (c) *c = '\0';
-            sprintf(item->name, "%s: %d", base, val);
+
+            if (item->par_set->par_type == TYPE_FLOAT) {
+                float val = *(float *)item->par_set->p_par;
+                uint8 pn = item->par_set->point_num;
+                if (pn == 1)
+                    sprintf(item->name, "%s: %.1f", base, val);
+                else if (pn == 2)
+                    sprintf(item->name, "%s: %.2f", base, val);
+                else
+                    sprintf(item->name, "%s: %.0f", base, val);
+            } else {
+                int16 val = *(int16 *)item->par_set->p_par;
+                sprintf(item->name, "%s: %d", base, val);
+            }
         }
         item = item->up;
     } while (item != page->enter);
 }
 
 /*==================== Reset PID：清空 Flash，恢复 pid.c 默认值 ====================*/
-/* 默认值与 pid.c 同步：speed(60/0/20) track(730/420/230/150) gyro(28/30) image(22) */
-#define SPD_KP_DEF   60
-#define SPD_KI_DEF    0
-#define SPD_KD_DEF   20
+/* 默认值与 pid.c 同步 */
+#define SPD_KP_DEF  8.6f
+#define SPD_KI_DEF   1.2f
+#define SPD_KD_DEF  1.0f
 #define TRK_KP_DEF  120
 #define TRK_KD_DEF  60
 #define TRK_KP2_DEF  50   /* 0.5× 100 */
 #define TRK_KD2_DEF  60   /* 0.6 × 100 */
-#define GYR_KP_DEF   25
-#define GYR_KD_DEF   28
-#define IMG_KP_DEF   9
+#define GYR_KP_DEF  25.0f
+#define GYR_KD_DEF  28.0f
+#define IMG_KP_DEF   9.0f
 
 void reset_pid(void)
 {
     /* 1. 擦除 Flash */
     flash_erase_page(PID_FLASH_SECTOR, PID_FLASH_PAGE);
 
-    /* 2. 恢复硬编码默认值（不读结构体，因为结构体已被历史值覆盖） */
+    /* 2. 恢复硬编码默认值 */
     speed_Kp = SPD_KP_DEF; speed_Ki = SPD_KI_DEF; speed_Kd = SPD_KD_DEF;
     track_kp = TRK_KP_DEF; track_kd = TRK_KD_DEF;
     track_kp2 = TRK_KP2_DEF; track_kd2 = TRK_KD2_DEF;
     gyro_Kp  = GYR_KP_DEF;  gyro_Kd  = GYR_KD_DEF;
     image_Kp = IMG_KP_DEF;
 
-    /* 3. 写入 Flash */
-    int16 vals[10];
-    vals[FIDX_SPEED_KP] = speed_Kp; vals[FIDX_SPEED_KI] = speed_Ki; vals[FIDX_SPEED_KD] = speed_Kd;
-    vals[FIDX_TRACK_KP] = track_kp; vals[FIDX_TRACK_KD] = track_kd;
-    vals[FIDX_TRACK_KP2] = track_kp2; vals[FIDX_TRACK_KD2] = track_kd2;
-    vals[FIDX_GYRO_KP]  = gyro_Kp;  vals[FIDX_GYRO_KD]  = gyro_Kd;
-    vals[FIDX_IMAGE_KP] = image_Kp;
+    /* 3. 写入 Flash（float ×10 存入 int16 槽位） */
+    #define FLASH_F(idx, val) flash_union_buffer[idx].int16_type = (int16)((val) * 10.0f)
     flash_read_page_to_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
-    for (uint8 i = 0; i < 10; i++) flash_union_buffer[i].int16_type = vals[i];
+    FLASH_F(FIDX_SPEED_KP, speed_Kp); FLASH_F(FIDX_SPEED_KI, speed_Ki); FLASH_F(FIDX_SPEED_KD, speed_Kd);
+    flash_union_buffer[FIDX_TRACK_KP].int16_type  = track_kp;
+    flash_union_buffer[FIDX_TRACK_KD].int16_type  = track_kd;
+    flash_union_buffer[FIDX_TRACK_KP2].int16_type = track_kp2;
+    flash_union_buffer[FIDX_TRACK_KD2].int16_type = track_kd2;
+    FLASH_F(FIDX_GYRO_KP,  gyro_Kp);  FLASH_F(FIDX_GYRO_KD,  gyro_Kd);
+    FLASH_F(FIDX_IMAGE_KP, image_Kp);
+    #undef FLASH_F
     flash_write_page_from_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
 
     /* 4. 同步到结构体 */

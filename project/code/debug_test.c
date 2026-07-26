@@ -1,5 +1,6 @@
 #include "debug_test.h"
 #include "motor.h"
+#include "pid.h"
 
 int8_t imu_init = 0;
 
@@ -16,8 +17,8 @@ void HARDWARE_INIT(void)
     pwm_init(PWM_R, 17000, 0);
 
     /* 编码器初始化 */
-    encoder_quad_init(ENCODER_1, ENCODER_1_A, ENCODER_1_B);
-    encoder_quad_init(ENCODER_2, ENCODER_2_A, ENCODER_2_B);
+    encoder_dir_init(ENCODER_1, ENCODER_1_LSB, ENCODER_1_DIR);
+    encoder_dir_init(ENCODER_2, ENCODER_2_LSB, ENCODER_2_DIR);
 	
 	/* imu963ra初始化 */
 	if(imu963ra_init()){imu_init = 0;}
@@ -97,51 +98,34 @@ void encoder_test(void)
 {
     int16_t last_sL = 1, last_sR = 1;
     int32_t last_dL = 1, last_dR = 1;
-    int16_t last_raw1 = 1, last_raw2 = 1;
 
     ips200_clear();
     ips200_show_string(0,   0, "--Encoder--");
-    ips200_show_string(0,  16, "raw1:");
-    ips200_show_string(0,  32, "speed_L:");
-    ips200_show_string(0,  48, "distance_L:");
-    ips200_show_string(0,  64, "raw2:");
-    ips200_show_string(0,  80, "speed_R:");
-    ips200_show_string(0,  96, "distance_R:");
-    ips200_show_string(0, 128, "KEY1: back");
+    ips200_show_string(0,  32, "L_speed:");
+    ips200_show_string(0,  64, "L_dist:");
+    ips200_show_string(0,  96, "R_speed:");
+    ips200_show_string(0, 128, "R_dist:");
+    ips200_show_string(0, 160, "KEY1: back");
 
     while (1) {
-        /* 直接读原始计数器（不经 interrupt / clear，验证硬件是否有信号） */
-        int16_t raw1 = (int16_t)TIM3->CNT;
-        int16_t raw2 = (int16_t)TIM4->CNT;
-        if (last_raw1 != raw1) {
-            ips200_show_string(64, 16, "     ");
-            ips200_show_int(64, 16, raw1, 5);
-            last_raw1 = raw1;
-        }
-        if (last_raw2 != raw2) {
-            ips200_show_string(64, 64, "     ");
-            ips200_show_int(64, 64, raw2, 5);
-            last_raw2 = raw2;
-        }
-
         if (last_sL != speed_L) {
-            ips200_show_string(104, 32, "     ");
-            ips200_show_int(104, 32, speed_L, 5);
+            ips200_show_string(80, 32, "     ");
+            ips200_show_int(80, 32, speed_L, 5);
             last_sL = speed_L;
         }
         if (last_dL != distance_L) {
-            ips200_show_string(104, 48, "        ");
-            ips200_show_int(104, 48, distance_L, 8);
+            ips200_show_string(80, 64, "        ");
+            ips200_show_int(80, 64, distance_L, 8);
             last_dL = distance_L;
         }
         if (last_sR != speed_R) {
-            ips200_show_string(104, 80, "     ");
-            ips200_show_int(104, 80, speed_R, 5);
+            ips200_show_string(80, 96, "     ");
+            ips200_show_int(80, 96, speed_R, 5);
             last_sR = speed_R;
         }
         if (last_dR != distance_R) {
-            ips200_show_string(104, 96, "        ");
-            ips200_show_int(104, 96, distance_R, 8);
+            ips200_show_string(80, 128, "        ");
+            ips200_show_int(80, 128, distance_R, 8);
             last_dR = distance_R;
         }
 
@@ -153,5 +137,82 @@ void encoder_test(void)
         }
     }
 
+    menu_request_redraw();
+}
+
+/*
+ *  速度环位置保持测试
+ *  车记住当前位置，手动推车后自动回到原位
+ *  用来在静止状态下调速度环 PID，KEY_1 退出
+ */
+void speed_hold_test(void)
+{
+    int32_t start_pos = (distance_L + distance_R) / 2;
+
+    PID_t pos_pid = {
+        .Kp = 3,  .Ki = 0,  .Kd = 3,
+        .OutMax = 400,  .OutMin = -400,
+    };
+
+    speed_pid.ErrorInt = 0;
+    speed_pid.Error0   = 0;
+    speed_pid.Error1   = 0;
+
+    ips200_clear();
+    ips200_show_string(0,  0, "Speed Hold Test");
+    ips200_show_string(0, 16, "err:       ");
+    ips200_show_string(0, 32, "spd:       ");
+    ips200_show_string(0, 48, "PWM:       ");
+    ips200_show_string(0, 80, "Push car -> returns");
+    ips200_show_string(0, 96, "KEY1: exit");
+
+    int32_t last_err = 1, last_spd = 1, last_pwm = 1;
+
+    while (1) {
+        int32_t cur_pos = (distance_L + distance_R) / 2;
+        int16_t cur_spd = (speed_L + speed_R) / 2;
+
+        /* 位置环: 距离误差 → 目标速度 */
+        pos_pid.Target = start_pos;
+        pos_pid.Actual = cur_pos;
+        PID_Update(&pos_pid);
+        int16_t target_speed = (int16_t)pos_pid.Out;
+
+        /* 速度环: 速度误差 → PWM (不用 base_speed, 靠积分自举) */
+        speed_pid.Target = target_speed;
+        speed_pid.Actual = cur_spd;
+        PID_Update(&speed_pid);
+        int32_t pwm_out = (int32_t)speed_pid.Out;
+
+        motor_set_pwm(DIR_L, PWM_L, pwm_out);
+        motor_set_pwm(DIR_R, PWM_R, pwm_out);
+
+        int16_t err = (int16_t)(cur_pos - start_pos);
+        if (err != last_err) {
+            ips200_show_string(48, 16, "          ");
+            ips200_show_int(48, 16, err, 8);
+            last_err = err;
+        }
+        if (cur_spd != last_spd) {
+            ips200_show_string(48, 32, "          ");
+            ips200_show_int(48, 32, cur_spd, 8);
+            last_spd = cur_spd;
+        }
+        if (pwm_out != last_pwm) {
+            ips200_show_string(48, 48, "          ");
+            ips200_show_int(48, 48, pwm_out, 8);
+            last_pwm = pwm_out;
+        }
+
+        key_scanner();
+        if (key_get_state(KEY_1) == KEY_SHORT_PRESS) {
+            key_clear_state(KEY_1);
+            break;
+        }
+        system_delay_ms(10);
+    }
+
+    motor_set_pwm(DIR_L, PWM_L, 0);
+    motor_set_pwm(DIR_R, PWM_R, 0);
     menu_request_redraw();
 }

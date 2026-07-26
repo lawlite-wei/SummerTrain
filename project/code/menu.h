@@ -42,6 +42,10 @@ typedef struct {
     void        (*on_change)(int16 val); /* 值变更时回调（如更新硬件PWM） */
     uint8       flash_enable;   /* Flash存储使能（1=需要断电保存） */
     uint16      flash_buf_index;/* 在flash_union_buffer中的索引 */
+    void        (*on_change_float)(float val); /* float版值变更回调 */
+    float       min_val_f;      /* 原地编辑最小值(浮点) */
+    float       max_val_f;      /* 原地编辑最大值(浮点) */
+    int16       flash_scale;    /* Flash缩放因子 (10=0.1精度, 100=0.01精度) */
 } param_set;
 
 /*==================== 菜单单元（双向链表节点） ====================*/
@@ -85,6 +89,13 @@ void menu_add_flash_edit(menu_unit *page, const char *name,
                          int16 *p_val, int16 step, int16 min_val, int16 max_val,
                          uint16 flash_buf_index,
                          void (*on_change)(int16 val));
+void menu_add_inline_edit_float(menu_unit *page, const char *name,
+    float *p_val, float step, float min_val, float max_val,
+    uint8 point_num, void (*on_change)(float val));
+void menu_add_flash_edit_float(menu_unit *page, const char *name,
+    float *p_val, float step, float min_val, float max_val,
+    uint8 point_num, uint16 flash_buf_index, int16 flash_scale,
+    void (*on_change)(float val));
 
 /* 菜单重绘请求（外部函数调用后标记需要刷新） */
 void menu_request_redraw(void);

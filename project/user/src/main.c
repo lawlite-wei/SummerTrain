@@ -54,6 +54,9 @@ int main (void)
     {
         key_scanner();           // 逐飞库按键扫描（每周期调用）
         show_process(NULL);      // 菜单主循环（处理按键/导航/显示）
+		
+//		motor_set_pwm(DIR_L,PWM_L,2300);
+//		motor_set_pwm(DIR_R,PWM_R,2000);
         system_delay_ms(10);     
     }
     
@@ -68,11 +71,11 @@ int main (void)
 void pit_handler (void)
 {
     /* 编码器数据更新（每 10ms 调用一次，PIT 周期 1ms） */
-//    static uint16 encoder_tick = 0;
-//    if (++encoder_tick >= 10) {
-//        encoder_tick = 0;
-//        encoder_update();
-//    }
+    static uint16 encoder_tick = 0;
+    if (++encoder_tick >= 20) {
+        encoder_tick = 0;
+        encoder_update();
+    }
 
 //    /* 大津法阈值更新请求（每 5ms，仅在摄像头显示模式下生效） */
 //    static uint16 otsu_tick = 0;

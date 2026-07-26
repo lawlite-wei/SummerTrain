@@ -1,7 +1,7 @@
 #include "track.h"
 #include <math.h>
 
-#define base_speed  2200    // 基础pwm
+#define base_speed  1000    // 基础pwm
 
 // 巡线模式（按下Start后进入，KEY1退出）
 void track_line(void)
@@ -11,6 +11,10 @@ void track_line(void)
 //    otsu_enable = 1;
 
 	static int32_t turn_control = 0;
+	// 每次速度环积分清0
+	speed_pid.ErrorInt = 0; 
+	speed_pid.Error0 = 0;
+	speed_pid.Error1 = 0;
 
     while (1) {
         if (mt9v03x_finish_flag) {
@@ -41,8 +45,19 @@ void track_line(void)
             boundary_line_init();
             longest_white_sweepline(binary_image);
 
+            /* 道宽半边补线：单边丢线时用道宽从另一侧推算 */
+            road_wide_fill_lost_line();
+
             /* 计算中线误差 */
             line_err = err_sum_average(err_start_point, err_end_point);
+			
+			/* 速度环 */
+			speed_pid.Target = 210;
+			speed_pid.Actual = (speed_L + speed_R) / 2;
+			PID_Update(&speed_pid);
+			float dif_speed = speed_pid.Out;
+			
+			//if(fabsf(line_err) < 20){image_pid.ErrorInt = 0;}
 			
 			/* 图像环 */
 			image_pid.Target = 0;
@@ -56,31 +71,20 @@ void track_line(void)
 			PID_Update(&gyro_pid);
 			turn_control = -(int32_t)gyro_pid.Out;
 
-//            /* PID 更新 */
-//            turn_control  = PPDD_location(0, line_err, gz, &track_pid);
-
             /* 入弯动态降速 v1：偏差越大、速度越低 */
-			float speed_scale = 1.0f - fabsf(line_err) * 0.078f;
+//			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
 //			if (speed_scale < 0.35f) speed_scale = 0.35f;
-			int32_t dyn_speed = (int32_t)(base_speed * speed_scale);
-			
-			/* 限幅 */
-			if(dyn_speed < 800){dyn_speed = 800;}
-
-//            /* 动态基础速度 v2：偏差 + 偏差变化率 联合降速
-//               入弯时 err_delta 大 → 提前刹车，解决长直道入弯漂移 */
-//            static float last_line_err = 0;
-//            float abs_err   = fabsf(line_err);
-//            float err_delta = fabsf(line_err - last_line_err);
-//            last_line_err   = line_err;
-
-//            float reduction = abs_err * 22.0f + err_delta * 45.0f;
-//            if (reduction > 1300.0f) reduction = 1300.0f;
-//            int32_t dyn_speed = base_speed - (int32_t)reduction;
+//			int32_t dyn_speed = (int32_t)(base_speed * speed_scale);
+//			
+//			/* 限幅 */
+//			if(dyn_speed < 800){dyn_speed = 800;}
 
             /* 差速输出 */
-			motor_set_pwm(DIR_L, PWM_L, dyn_speed + turn_control);
-            motor_set_pwm(DIR_R, PWM_R, dyn_speed - turn_control);
+//			motor_set_pwm(DIR_L, PWM_L, base_speed + turn_control);
+//            motor_set_pwm(DIR_R, PWM_R, base_speed - turn_control);
+			
+			motor_set_pwm(DIR_L, PWM_L, speed_pid.Out + turn_control);
+            motor_set_pwm(DIR_R, PWM_R, speed_pid.Out - turn_control);
 
             mt9v03x_finish_flag = 0;
         }

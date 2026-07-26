@@ -11,6 +11,7 @@
 //extern uint8 binarization_threshold;        /* 大津法动态阈值（已注释） */
 //extern volatile uint8 otsu_update_flag;     /* 大津法更新请求标志（已注释） */
 //extern uint8 otsu_enable;                   /* 大津法使能（已注释） */
+
 extern float line_err;
 extern uint8 err_start_point;
 extern uint8 err_end_point;
@@ -35,6 +36,8 @@ void extend_left_line(uint8 start_point, uint8 end_point);
 void extend_right_line(uint8 start_point, uint8 end_point);
 void road_wide_draw_left_line(void);
 void road_wide_draw_right_line(void);
+void road_wide_fill_lost_line(void);
+void road_wide_fill_lost_line_per_row(void);
 void find_down_point(uint8 start_point,uint8 end_point);
 void find_up_point(uint8 start_point,uint8 end_point);
 uint8 straight_judge(void);
