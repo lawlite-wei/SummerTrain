@@ -50,7 +50,25 @@ uint16 zebra_clear_timer = 0;     // 斑马线清除计时器
 uint8 zebra_last_flag = 0;        // 上次斑马线标志
 uint8 zebra_flag = 0;             // 斑马线标志位
 
+// 外切补线赛道宽度数组
 const uint8 road_wide[DEAL_IMAGE_H]=
+{
+41,42,43,45,46,47,49,49,51,53,
+53,55,55,57,58,59,61,62,63,64,
+65,67,68,69,70,72,73,74,76,76,
+78,79,80,82,82,84,86,86,88,88,
+90,91,92,94,95,96,97,98,100,100,
+102,103,105,105,107,108,109,111,112,113,
+114,116,117,118,119,120,122,123,124,126,
+126,128,129,130,132,132,134,134,136,138,
+138,140,140,142,144,144,146,146,148,149,
+150,151,152,154,155,156,157,158,159,161,
+162,163,164,165,166,167,169,170,171,172,
+173,175,175,177,177,179,180,181,184,184
+};
+
+// 内切补线赛道宽度数组
+const uint8 road_wide_inner[DEAL_IMAGE_H]=
 {
 41,42,43,45,46,47,49,49,51,53,
 53,55,55,57,58,59,61,62,63,64,
@@ -104,8 +122,8 @@ void show_gary(void)
             /* 最长白列巡线 + 边界叠加显示 */
             boundary_line_init();
             longest_white_sweepline(binary_image);
-            road_wide_fill_lost_line();
-//			road_wide_fill_lost_line_per_row();
+//            road_wide_fill_lost_line();
+			inner_draw_line();
             show_boundary_line();
             show_saidao_flag(); /* 右下角元素类型 */
 
@@ -168,8 +186,8 @@ void show_binarize(void)
             /* 最长白列巡线 + 边界叠加显示 */
             boundary_line_init();
             longest_white_sweepline(binary_image);
-            road_wide_fill_lost_line();
-//			road_wide_fill_lost_line_per_row();
+//            road_wide_fill_lost_line();
+			inner_draw_line();
             show_boundary_line();
             show_saidao_flag(); /* 右下角元素类型 */
 
@@ -816,7 +834,7 @@ void road_wide_draw_right_line(void)
 
 /**
 *
-* @brief  道宽半边补线：单边丢线时用道宽从另一侧推算
+* @brief  外切补线
 **/
 void road_wide_fill_lost_line(void)
 {
@@ -845,42 +863,57 @@ void road_wide_fill_lost_line(void)
 
 /**
 *
-* @brief  道宽逐行补线：按丢线标志逐行补，左边丢补左边、右边丢补右边
-*         同一帧内可双向补线，不覆盖未丢线的行
+* @brief  右边丢线补左边
 **/
+void right_lose_draw_left_line(void)
+{
+    for(int i=0;i<DEAL_IMAGE_H-1;i++)
+    {
+        left_line[i]=right_line[i]-road_wide[i];
+        if(left_line[i]<1)//防止越界
+        {
+            left_line[i]=1;
+        }
+    }
+}
+
 /**
 *
-* @brief  逐行道宽补线：按 left_lost_flag / right_lost_flag 逐行判断
-*         左边丢 → 用右边 - road_wide 补左边（右拐场景：右边全白）
-*         右边丢 → 用左边 + road_wide 补右边（左拐场景：左边全白）
-*         两边都没丢 → 不补
+* @brief  左边丢线补右边
 **/
-void road_wide_fill_lost_line_per_row(void)
+void left_lose_draw_right_line(void)
+{
+    for(int i=0;i<DEAL_IMAGE_H-1;i++)
+    {
+        right_line[i]=left_line[i]+road_wide[i];
+        if(right_line[i]>=DEAL_IMAGE_W-2)//防止越界
+        {
+            right_line[i]=DEAL_IMAGE_W-2;
+        }
+    }
+}
+
+/**
+*
+* @brief  内切补线
+**/
+void inner_draw_line(void)
 {
     if (cross_flag || circle_flag)
         return;
 
-    uint8 filled = 0;
-
-    for (int i = 0; i < DEAL_IMAGE_H; i++)
+    if (left_lost_count > 40 && right_lost_count < 10 && right_lost_count > 2)
     {
-        /* 左拐：左边全白/丢线 → 右边还在 → 用右边推左边 */
-        if (left_lost_flag[i] && !right_lost_flag[i])
-        {
-            left_line[i] = right_line[i] - road_wide[i];
-            if (left_line[i] < 1) left_line[i] = 1;
-            filled = 1;
-        }
-        /* 右拐：右边全白/丢线 → 左边还在 → 用左边推右边 */
-        else if (right_lost_flag[i] && !left_lost_flag[i])
-        {
-            right_line[i] = left_line[i] + road_wide[i];
-            if (right_line[i] >= DEAL_IMAGE_W - 2) right_line[i] = DEAL_IMAGE_W - 2;
-            filled = 1;
-        }
+        left_lose_draw_right_line();
     }
-
-    if (!filled) return;
+    else if (right_lost_count > 40 && left_lost_count < 10 && left_lost_count > 2)
+    {
+        right_lose_draw_left_line();
+    }
+    else
+    {
+        return;
+    }
 
     /* 补线后重算中线 */
     for (int i = DEAL_IMAGE_H - 1; i >= DEAL_IMAGE_H - search_stop_line && i >= 0; i--)

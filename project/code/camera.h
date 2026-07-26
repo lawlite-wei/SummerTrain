@@ -37,7 +37,7 @@ void extend_right_line(uint8 start_point, uint8 end_point);
 void road_wide_draw_left_line(void);
 void road_wide_draw_right_line(void);
 void road_wide_fill_lost_line(void);
-void road_wide_fill_lost_line_per_row(void);
+void inner_draw_line(void);
 void find_down_point(uint8 start_point,uint8 end_point);
 void find_up_point(uint8 start_point,uint8 end_point);
 uint8 straight_judge(void);

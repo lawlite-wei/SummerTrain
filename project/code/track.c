@@ -46,13 +46,14 @@ void track_line(void)
             longest_white_sweepline(binary_image);
 
             /* 道宽半边补线：单边丢线时用道宽从另一侧推算 */
-            road_wide_fill_lost_line();
+//            road_wide_fill_lost_line();
+			inner_draw_line();
 
             /* 计算中线误差 */
             line_err = err_sum_average(err_start_point, err_end_point);
 			
 			/* 速度环 */
-			speed_pid.Target = 210;
+			speed_pid.Target = 230;
 			speed_pid.Actual = (speed_L + speed_R) / 2;
 			PID_Update(&speed_pid);
 			float dif_speed = speed_pid.Out;
