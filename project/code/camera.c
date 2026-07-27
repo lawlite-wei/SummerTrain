@@ -902,11 +902,11 @@ void inner_draw_line(void)
     if (cross_flag || circle_flag)
         return;
 
-    if (left_lost_count > 40 && right_lost_count < 10 && right_lost_count > 2)
+    if (left_lost_count > 20 && right_lost_count > 5 &&  right_lost_count < 30)
     {
         left_lose_draw_right_line();
     }
-    else if (right_lost_count > 40 && left_lost_count < 10 && left_lost_count > 2)
+    else if (right_lost_count > 20 && left_lost_count > 5 && left_lost_count < 30)
     {
         right_lose_draw_left_line();
     }

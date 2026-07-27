@@ -79,7 +79,7 @@ PID_t gyro_pid={
 *   主要调节k   （跟转弯有关）
 */ 
 PID_t image_pid={
-	.Kp = 9.0,
+	.Kp = 18.0,
 	.Ki = 0.0,
 	.Kd = 2.5,
 	
@@ -92,9 +92,9 @@ PID_t image_pid={
 *   主要调节k,d
 */ 
 PID_t speed_pid={
-	.Kp = 10,
-	.Ki = 1,
-	.Kd = 15,
+	.Kp = 7.1,
+	.Ki = 1.0,
+	.Kd = 0.2,
 	
 	.OutMax = 3000,
 	.OutMin = -3000,

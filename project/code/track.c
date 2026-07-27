@@ -53,7 +53,7 @@ void track_line(void)
             line_err = err_sum_average(err_start_point, err_end_point);
 			
 			/* 速度环 */
-			speed_pid.Target = 230;
+			speed_pid.Target = 235;
 			speed_pid.Actual = (speed_L + speed_R) / 2;
 			PID_Update(&speed_pid);
 			float dif_speed = speed_pid.Out;

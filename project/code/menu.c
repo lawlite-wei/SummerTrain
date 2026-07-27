@@ -934,16 +934,16 @@ static void update_page_item_names(menu_unit *page)
 
 /*==================== Reset PID：清空 Flash，恢复 pid.c 默认值 ====================*/
 /* 默认值与 pid.c 同步 */
-#define SPD_KP_DEF  8.6f
-#define SPD_KI_DEF   1.2f
-#define SPD_KD_DEF  1.0f
+#define SPD_KP_DEF  7.1f
+#define SPD_KI_DEF   1.0f
+#define SPD_KD_DEF  0.2f
 #define TRK_KP_DEF  120
 #define TRK_KD_DEF  60
 #define TRK_KP2_DEF  50   /* 0.5× 100 */
 #define TRK_KD2_DEF  60   /* 0.6 × 100 */
-#define GYR_KP_DEF  25.0f
-#define GYR_KD_DEF  28.0f
-#define IMG_KP_DEF   9.0f
+#define GYR_KP_DEF  18.0f
+#define GYR_KD_DEF  11.0f
+#define IMG_KP_DEF   18.0f
 
 void reset_pid(void)
 {
