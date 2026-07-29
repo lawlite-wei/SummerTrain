@@ -699,7 +699,7 @@ static menu_unit *image_pid_page;
 /* PID 存储变量（Flash ↔ 菜单双向同步，on_change 写入实际 PID 结构体） */
 static float speed_Kp, speed_Ki, speed_Kd;
 static int16 track_kp, track_kd, track_kp2, track_kd2;
-static float gyro_Kp, gyro_Kd;
+static float gyro_Kp, gyro_Ki, gyro_Kd;
 static float image_Kp;
 
 /* Flash 缓冲区索引 */
@@ -712,7 +712,8 @@ static float image_Kp;
 #define FIDX_TRACK_KD2  6
 #define FIDX_GYRO_KP    7
 #define FIDX_GYRO_KD    8
-#define FIDX_IMAGE_KP   9
+#define FIDX_GYRO_KI    9
+#define FIDX_IMAGE_KP   10
 
 static void pwm_L_on_change(int16 val) { motor_set_pwm(DIR_L, PWM_L, (uint32)val); }
 static void pwm_R_on_change(int16 val) { motor_set_pwm(DIR_R, PWM_R, (uint32)val); }
@@ -726,13 +727,14 @@ static void tp_kd_cb(int16 v) { track_pid.kd  = (float)v; }
 static void tp_kp2_cb(int16 v) { track_pid.kp2 = v / 100.0f; }
 static void tp_kd2_cb(int16 v) { track_pid.kd2 = v / 100.0f; }
 static void gp_Kp_cb(float v) { gyro_pid.Kp  = v; }
+static void gp_Ki_cb(float v) { gyro_pid.Ki  = v; }
 static void gp_Kd_cb(float v) { gyro_pid.Kd  = v; }
 static void ip_Kp_cb(float v) { image_pid.Kp = v; }
 
 static void build_menu_tree(void)
 {
     /* 从 Flash 加载 PID 参数（首次上电用 pid.c 结构体默认值） */
-    #define PID_VAL_COUNT 10
+    #define PID_VAL_COUNT 11
     int16 pid_vals[PID_VAL_COUNT];
     flash_load_params(pid_vals, PID_VAL_COUNT);
 
@@ -749,6 +751,7 @@ static void build_menu_tree(void)
     track_kd2 = (pid_vals[FIDX_TRACK_KD2] != -1) ? pid_vals[FIDX_TRACK_KD2] : (int16)(track_pid.kd2 * 100);
     LOAD_FL(gyro_Kp,  FIDX_GYRO_KP,  gyro_pid.Kp);
     LOAD_FL(gyro_Kd,  FIDX_GYRO_KD,  gyro_pid.Kd);
+    gyro_Ki  = (pid_vals[FIDX_GYRO_KI]  != -1) ? ((float)pid_vals[FIDX_GYRO_KI]  / 100.0f) : gyro_pid.Ki;
     LOAD_FL(image_Kp, FIDX_IMAGE_KP, image_pid.Kp);
 
     #undef LOAD_FL
@@ -762,6 +765,7 @@ static void build_menu_tree(void)
         pid_vals[FIDX_TRACK_KP2] = track_kp2; pid_vals[FIDX_TRACK_KD2] = track_kd2;
         pid_vals[FIDX_GYRO_KP]  = (int16)(gyro_Kp * 10);
         pid_vals[FIDX_GYRO_KD]  = (int16)(gyro_Kd * 10);
+        pid_vals[FIDX_GYRO_KI]  = (int16)(gyro_Ki * 100);
         pid_vals[FIDX_IMAGE_KP] = (int16)(image_Kp * 10);
         flash_read_page_to_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
         for (uint8 i = 0; i < PID_VAL_COUNT; i++) flash_union_buffer[i].int16_type = pid_vals[i];
@@ -770,7 +774,7 @@ static void build_menu_tree(void)
     /* 同步到实际 PID 结构体 */
     sp_Kp_cb(speed_Kp); sp_Ki_cb(speed_Ki); sp_Kd_cb(speed_Kd);
     tp_kp_cb(track_kp); tp_kd_cb(track_kd); tp_kp2_cb(track_kp2); tp_kd2_cb(track_kd2);
-    gp_Kp_cb(gyro_Kp); gp_Kd_cb(gyro_Kd);
+    gp_Kp_cb(gyro_Kp); gp_Ki_cb(gyro_Ki); gp_Kd_cb(gyro_Kd);
     ip_Kp_cb(image_Kp);
 
     main_page   = menu_create_page("======MAIN======");
@@ -803,6 +807,7 @@ static void build_menu_tree(void)
 
     /* Gyro PID : */
     menu_add_flash_edit_float(gyro_pid_page, "Kp", &gyro_Kp, 0.5f, -50, 100, 1, FIDX_GYRO_KP, 10, gp_Kp_cb);
+    menu_add_flash_edit_float(gyro_pid_page, "Ki", &gyro_Ki, 0.01f, -5, 5, 2, FIDX_GYRO_KI, 100, gp_Ki_cb);
     menu_add_flash_edit_float(gyro_pid_page, "Kd", &gyro_Kd, 0.5f, -50, 100, 1, FIDX_GYRO_KD, 10, gp_Kd_cb);
 
     /* Image PID : */
@@ -813,6 +818,7 @@ static void build_menu_tree(void)
     menu_add_function(debug_page, "encoder", encoder_test);
     menu_add_function(debug_page, "IMU",        imu_test);
     menu_add_function(debug_page, "speed hold", speed_hold_test);
+    menu_add_function(debug_page, "gyro hold",  gyro_hold_test);
 
     /* PID 子页 */
     menu_add_submenu(pid_page, "speed_pid", speed_pid_page);
@@ -942,6 +948,7 @@ static void update_page_item_names(menu_unit *page)
 #define TRK_KP2_DEF  50   /* 0.5× 100 */
 #define TRK_KD2_DEF  60   /* 0.6 × 100 */
 #define GYR_KP_DEF  18.0f
+#define GYR_KI_DEF   0.0f
 #define GYR_KD_DEF  11.0f
 #define IMG_KP_DEF   18.0f
 
@@ -954,7 +961,7 @@ void reset_pid(void)
     speed_Kp = SPD_KP_DEF; speed_Ki = SPD_KI_DEF; speed_Kd = SPD_KD_DEF;
     track_kp = TRK_KP_DEF; track_kd = TRK_KD_DEF;
     track_kp2 = TRK_KP2_DEF; track_kd2 = TRK_KD2_DEF;
-    gyro_Kp  = GYR_KP_DEF;  gyro_Kd  = GYR_KD_DEF;
+    gyro_Kp  = GYR_KP_DEF;  gyro_Ki  = GYR_KI_DEF;  gyro_Kd  = GYR_KD_DEF;
     image_Kp = IMG_KP_DEF;
 
     /* 3. 写入 Flash（float ×10 存入 int16 槽位） */
@@ -966,6 +973,7 @@ void reset_pid(void)
     flash_union_buffer[FIDX_TRACK_KP2].int16_type = track_kp2;
     flash_union_buffer[FIDX_TRACK_KD2].int16_type = track_kd2;
     FLASH_F(FIDX_GYRO_KP,  gyro_Kp);  FLASH_F(FIDX_GYRO_KD,  gyro_Kd);
+    flash_union_buffer[FIDX_GYRO_KI].int16_type  = (int16)(gyro_Ki * 100);
     FLASH_F(FIDX_IMAGE_KP, image_Kp);
     #undef FLASH_F
     flash_write_page_from_buffer(PID_FLASH_SECTOR, PID_FLASH_PAGE);
@@ -973,7 +981,7 @@ void reset_pid(void)
     /* 4. 同步到结构体 */
     sp_Kp_cb(speed_Kp); sp_Ki_cb(speed_Ki); sp_Kd_cb(speed_Kd);
     tp_kp_cb(track_kp); tp_kd_cb(track_kd); tp_kp2_cb(track_kp2); tp_kd2_cb(track_kd2);
-    gp_Kp_cb(gyro_Kp); gp_Kd_cb(gyro_Kd);
+    gp_Kp_cb(gyro_Kp); gp_Ki_cb(gyro_Ki); gp_Kd_cb(gyro_Kd);
     ip_Kp_cb(image_Kp);
 
     /* 5. 更新菜单条目显示 */

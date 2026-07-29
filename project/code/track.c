@@ -55,9 +55,9 @@ void track_line(void)
 //			speed_pid.Target = 235;
 			
 			/* 入弯动态降速 v1：偏差越大、速度越低 */
-			float speed_scale = 1.0f - fabsf(line_err) * 0.0085f;
-			speed_pid.Target = 270 * speed_scale;
-			if(speed_pid.Target <= 220){speed_pid.Target = 220;}     // 速度限幅
+			float speed_scale = 1.0f - fabsf(line_err) * 0.018f;
+			speed_pid.Target = 300 * speed_scale;
+			if(speed_pid.Target <= 228){speed_pid.Target = 228;}     // 速度限幅
 			
 			speed_pid.Actual = (speed_L + speed_R) / 2;
 			PID_Update(&speed_pid);
@@ -79,6 +79,8 @@ void track_line(void)
             /* 差速输出 */			
 			motor_set_pwm(DIR_L, PWM_L, speed_pid.Out + turn_control);
             motor_set_pwm(DIR_R, PWM_R, speed_pid.Out - turn_control);
+            
+            motor_protect();
 
             mt9v03x_finish_flag = 0;
         }

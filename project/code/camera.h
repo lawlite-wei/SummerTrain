@@ -3,7 +3,7 @@
 
 #include "zf_common_headfile.h"
 
-#define binarization   243  // 默认二值化阈值
+#define binarization   245  // 默认二值化阈值
 
 #define DEAL_IMAGE_H 120
 #define DEAL_IMAGE_W 188

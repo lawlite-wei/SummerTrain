@@ -1,6 +1,4 @@
 #include "debug_test.h"
-#include "motor.h"
-#include "pid.h"
 
 int8_t imu_init = 0;
 
@@ -197,6 +195,73 @@ void speed_hold_test(void)
             ips200_show_string(48, 32, "          ");
             ips200_show_int(48, 32, cur_spd, 8);
             last_spd = cur_spd;
+        }
+        if (pwm_out != last_pwm) {
+            ips200_show_string(48, 48, "          ");
+            ips200_show_int(48, 48, pwm_out, 8);
+            last_pwm = pwm_out;
+        }
+
+        key_scanner();
+        if (key_get_state(KEY_1) == KEY_SHORT_PRESS) {
+            key_clear_state(KEY_1);
+            break;
+        }
+        system_delay_ms(10);
+    }
+
+    motor_set_pwm(DIR_L, PWM_L, 0);
+    motor_set_pwm(DIR_R, PWM_R, 0);
+    menu_request_redraw();
+}
+
+/*
+ *  角速度环保持测试
+ *  目标角速度设为0，左右推小车，观察小车是否抵抗旋转
+ *  用来在静止状态下调角速度环 PID，KEY_1 退出
+ */
+void gyro_hold_test(void)
+{
+    if (!imu_init) {
+        ips200_clear();
+        ips200_show_string(0, 0, "IMU not init!");
+        system_delay_ms(1000);
+        menu_request_redraw();
+        return;
+    }
+
+    gyro_pid.ErrorInt = 0;
+    gyro_pid.Error0   = 0;
+    gyro_pid.Error1   = 0;
+
+    ips200_clear();
+    ips200_show_string(0,  0, "Gyro Hold Test");
+    ips200_show_string(0, 16, "target: 0");
+    ips200_show_string(0, 32, "real_gz:       ");
+    ips200_show_string(0, 48, "PWM:       ");
+    ips200_show_string(0, 80, "Push car -> resist");
+    ips200_show_string(0, 96, "KEY1: exit");
+
+    int16 last_gz = 1;
+    int32 last_pwm = 1;
+
+    while (1) {
+        get_real_gz();
+
+        /* 角速度环: 目标=0，误差 = 0 - real_gz，输出抵抗旋转的差速 */
+        gyro_pid.Target = 0;
+        gyro_pid.Actual = real_gz;
+        PID_Update(&gyro_pid);
+        int32 pwm_out = -(int32)gyro_pid.Out;
+
+        motor_set_pwm(DIR_L, PWM_L,  pwm_out);
+        motor_set_pwm(DIR_R, PWM_R, -pwm_out);
+
+        int16 gz_display = (int16)(real_gz * 100);
+        if (gz_display != last_gz) {
+            ips200_show_string(80, 32, "          ");
+            ips200_show_float(80, 32, real_gz, 5, 2);
+            last_gz = gz_display;
         }
         if (pwm_out != last_pwm) {
             ips200_show_string(48, 48, "          ");

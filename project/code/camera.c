@@ -625,8 +625,8 @@ float err_sum_average(uint8 start_point,uint8 end_point)
                 - (float)((left_line[i] + right_line[i]) >> 1);
 
         /* 权重: 远处→近处 线性过渡, 改下面两个数即可 */
-        float near_w = 6.0f;   /* 近处(车头)权重 */
-        float far_w  = 12.0f;   /* 远处(前方)权重 */
+        float near_w = 9.5f;   /* 近处(车头)权重 */
+        float far_w  = 14.0f;   /* 远处(前方)权重 */
         float t = (float)(i - start_point) / (float)(end_point - start_point);
         float w = far_w + (near_w - far_w) * t;
 
@@ -902,13 +902,23 @@ void inner_draw_line(void)
     if (cross_flag || circle_flag)
         return;
 
-    if (left_lost_count > 20 && right_lost_count > 5 &&  right_lost_count < 30)
+//    if (left_lost_count > 20 && right_lost_count > 5 &&  right_lost_count < 30)
+	if (left_lost_count > 20  && right_lost_count > 5 &&  right_lost_count < 20)
     {
-        left_lose_draw_right_line();
+		if(boundary_start_right > 90 && boundary_start_right >= boundary_start_left + 5)
+		{
+			left_lose_draw_right_line();
+		}
+        else{return;}
     }
-    else if (right_lost_count > 20 && left_lost_count > 5 && left_lost_count < 30)
+//    else if (right_lost_count > 20 && left_lost_count > 5 && left_lost_count < 30)
+	else if (right_lost_count > 20  && left_lost_count > 5 && left_lost_count < 20 )
     {
-        right_lose_draw_left_line();
+        if(boundary_start_left > 90 && boundary_start_left >= boundary_start_right + 5)
+		{
+			left_lose_draw_right_line();
+		}
+        else{return;}
     }
     else
     {
