@@ -46,19 +46,23 @@ void track_line(void)
             longest_white_sweepline(binary_image);
 
             /* 道宽半边补线：单边丢线时用道宽从另一侧推算 */
-//            road_wide_fill_lost_line();
 			inner_draw_line();
 
             /* 计算中线误差 */
             line_err = err_sum_average(err_start_point, err_end_point);
 			
 			/* 速度环 */
-			speed_pid.Target = 235;
+//			speed_pid.Target = 235;
+			
+			/* 入弯动态降速 v1：偏差越大、速度越低 */
+			float speed_scale = 1.0f - fabsf(line_err) * 0.0085f;
+			speed_pid.Target = 270 * speed_scale;
+			if(speed_pid.Target <= 220){speed_pid.Target = 220;}     // 速度限幅
+			
 			speed_pid.Actual = (speed_L + speed_R) / 2;
 			PID_Update(&speed_pid);
 			float dif_speed = speed_pid.Out;
 			
-			//if(fabsf(line_err) < 20){image_pid.ErrorInt = 0;}
 			
 			/* 图像环 */
 			image_pid.Target = 0;
@@ -72,18 +76,7 @@ void track_line(void)
 			PID_Update(&gyro_pid);
 			turn_control = -(int32_t)gyro_pid.Out;
 
-            /* 入弯动态降速 v1：偏差越大、速度越低 */
-//			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
-//			if (speed_scale < 0.35f) speed_scale = 0.35f;
-//			int32_t dyn_speed = (int32_t)(base_speed * speed_scale);
-//			
-//			/* 限幅 */
-//			if(dyn_speed < 800){dyn_speed = 800;}
-
-            /* 差速输出 */
-//			motor_set_pwm(DIR_L, PWM_L, base_speed + turn_control);
-//            motor_set_pwm(DIR_R, PWM_R, base_speed - turn_control);
-			
+            /* 差速输出 */			
 			motor_set_pwm(DIR_L, PWM_L, speed_pid.Out + turn_control);
             motor_set_pwm(DIR_R, PWM_R, speed_pid.Out - turn_control);
 

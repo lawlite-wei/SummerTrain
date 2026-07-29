@@ -841,11 +841,11 @@ void road_wide_fill_lost_line(void)
     if (cross_flag || circle_flag)
         return;
 
-    if (left_lost_count > 20 && right_lost_count < 10)
+    if (left_lost_count > 20 && right_lost_count > 0 &&  right_lost_count < 5)
     {
         road_wide_draw_left_line();
     }
-    else if (right_lost_count > 20 && left_lost_count < 10)
+    else if (right_lost_count > 20 && left_lost_count > 0 && left_lost_count < 5)
     {
         road_wide_draw_right_line();
     }
@@ -1051,6 +1051,7 @@ uint8 straight_judge(void)
     if(search_stop_line>=110)
     {
         if(boundary_start_left>=115&&boundary_start_right>=115&&left_lost_count<10&&right_lost_count<10&&left_right_lost_count<10)
+//		if(boundary_start_left>=60&&boundary_start_right>=60&&left_lost_count<70&&right_lost_count<70&&left_right_lost_count<70)
         {
             if(fabsf(line_err)<=7)
             {
