@@ -70,8 +70,8 @@ PID_t gyro_pid={
 	.Ki = 0.0,
 	.Kd = 13,
 	
-	.OutMax = 5350,
-	.OutMin = -5350,
+	.OutMax = 4000,
+	.OutMin = -4000,
 };
 
 /*
@@ -81,10 +81,10 @@ PID_t gyro_pid={
 PID_t image_pid={
 	.Kp = 18.0,
 	.Ki = 0.0,
-	.Kd = 2.5,
+	.Kd = 1.5,
 	
-	.OutMax = 550,
-	.OutMin = -550,
+	.OutMax = 600,
+	.OutMin = -600,
 };
 
 /*
@@ -96,8 +96,8 @@ PID_t speed_pid={
 	.Ki = 1.0,
 	.Kd = 0.2,
 	
-	.OutMax = 3000,
-	.OutMin = -3000,
+	.OutMax = 4000,
+	.OutMin = -4000,
 };
 
 /*
