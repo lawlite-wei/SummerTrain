@@ -55,10 +55,14 @@ void track_line(void)
 //			speed_pid.Target = 235;
 			
 			/* 入弯动态降速 v1：偏差越大、速度越低 */
-			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
+			/* 速度环用滤波后的偏差 */
+            static float speed_err = 0;
+            speed_err += (line_err - speed_err) * 0.5f;  // α=0.5，够平滑且不过度滞后
+            float speed_scale = 1.0f - fabsf(speed_err) * 0.045f;
+//			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
 //			speed_pid.Target = 310 * speed_scale;
 			float new_target = 340 * speed_scale;
-   		    if (new_target < 230) new_target = 230;
+   		    if (new_target < 240) new_target = 240;
    		    if (new_target < speed_pid.Target) {
    			    // 减速：快速跟上，α 要大
    			    speed_pid.Target += (new_target - speed_pid.Target) * 0.8f;
