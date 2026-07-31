@@ -55,12 +55,20 @@ void track_line(void)
 //			speed_pid.Target = 235;
 			
 			/* 入弯动态降速 v1：偏差越大、速度越低 */
-			float speed_scale = 1.0f - fabsf(line_err) * 0.07f;
+			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
 //			speed_pid.Target = 310 * speed_scale;
-			float new_target = 320 * speed_scale;
-//			if(speed_pid.Target <= 230){speed_pid.Target = 230;}     // 速度限幅
-			speed_pid.Target += (new_target - speed_pid.Target) * 0.8f;  // 平滑过渡
-			if(speed_pid.Target <= 220){speed_pid.Target = 230;}     // 速度限幅
+			float new_target = 340 * speed_scale;
+   		    if (new_target < 230) new_target = 230;
+   		    if (new_target < speed_pid.Target) {
+   			    // 减速：快速跟上，α 要大
+   			    speed_pid.Target += (new_target - speed_pid.Target) * 0.8f;
+   		    } else {
+   			    // 加速：慢慢升，α 要小
+   			    speed_pid.Target += (new_target - speed_pid.Target) * 0.3f;
+   		    }
+			
+//			speed_pid.Target += (new_target - speed_pid.Target) * 0.45f;  // 平滑过渡
+//			if(speed_pid.Target <= 220){speed_pid.Target = 230;}     // 速度限幅
 			
 			speed_pid.Actual = (speed_L + speed_R) / 2;
 			PID_Update(&speed_pid);
