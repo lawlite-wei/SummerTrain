@@ -15,6 +15,8 @@
 extern float line_err;
 extern uint8 err_start_point;
 extern uint8 err_end_point;
+extern uint8 err_focus_row;
+extern uint8 search_stop_line;
 extern uint8 binary_image[DEAL_IMAGE_H][DEAL_IMAGE_W];
 extern uint8 zebra_count_total;
 extern uint8 cross_flag;
@@ -30,6 +32,7 @@ void longest_white_sweepline(uint8 image[DEAL_IMAGE_H][DEAL_IMAGE_W]);
 uint8 image_out_of_bounds(unsigned char in_image[DEAL_IMAGE_H][DEAL_IMAGE_W]);
 //uint8 otsuThreshold(uint8 *image);         /* 大津法（已注释） */
 float err_sum_average(uint8 start_point,uint8 end_point);
+float err_sum_average_v2(uint8 start_point, uint8 end_point, uint8 focus_row);
 void left_draw_line(uint8 x1,uint8 y1,uint8 x2,uint8 y2);
 void right_draw_line(uint8 x1,uint8 y1,uint8 x2,uint8 y2);
 void extend_left_line(uint8 start_point, uint8 end_point);

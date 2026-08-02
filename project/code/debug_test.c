@@ -33,8 +33,8 @@ void HARDWARE_INIT(void)
 
 /*
  *  电机PWM测试：按键实时调节左右电机PWM
- *  KEY_4: 左电机 +2    KEY_3: 左电机 -2
- *  KEY_2: 右电机 +2    KEY_1: 右电机 -2 / 长按退出
+ *  KEY_4(E5): 左电机 +2    KEY_3(E2): 左电机 -2
+ *  KEY_2(E4): 右电机 +2    KEY_1(E3): 右电机 -2 / 长按退出
  */
 void motor_test(void)
 {

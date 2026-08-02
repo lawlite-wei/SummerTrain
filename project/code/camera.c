@@ -42,6 +42,7 @@ uint8 binary_image[DEAL_IMAGE_H][DEAL_IMAGE_W];  // 二值化图像缓冲（最�
 // 默认视野范围
 uint8 err_start_point = 20; //误差起始点
 uint8 err_end_point = 100;   //误差终止点
+uint8 err_focus_row = 60;    //偏差权重中心行（高斯加权峰值位置）
 
 //  斑马线相关变量判定
 uint8 zebra_count_total = 0;      // 斑马线总计数
@@ -583,57 +584,108 @@ void longest_white_sweepline(uint8 image[DEAL_IMAGE_H][DEAL_IMAGE_W])
 *  end_point = 90
 *  err 误差值
 *  调节start_point和end_point来决定视野范围（50~119）
+*
+*  [旧版：线性加权] far_w=15 → near_w=7.5，远处主导
 **/
-float err_sum_average(uint8 start_point,uint8 end_point)
+//float err_sum_average(uint8 start_point,uint8 end_point)
+//{
+//
+////	static float err_kp1 = 7.0f;
+////	static float err_kp2 = 0.7f;
+//    //防止参数输入错误
+//    if(end_point<start_point)
+//    {
+//        uint8 t=end_point;
+//        end_point=start_point;
+//        start_point=t;
+//    }
+//
+//    if(start_point<DEAL_IMAGE_H-search_stop_line)start_point=DEAL_IMAGE_H-search_stop_line-1;//防止起点越界
+//    if(end_point<DEAL_IMAGE_H-search_stop_line)end_point=DEAL_IMAGE_H-search_stop_line-2;//防止终点越界
+//
+//    /* ---- 新版：近处加权 → 急弯走内圈 ---- */
+//    float err = 0, total_w = 0;
+//    for(int i = start_point; i < end_point; i++) {
+//        float e = (float)DEAL_IMAGE_W/2
+//                - (float)((left_line[i] + right_line[i]) >> 1);
+//
+//        /* 权重: 远处→近处 线性过渡, 改下面两个数即可 */
+//        float near_w = 7.5f;   /* 近处(车头)权重 */
+//        float far_w  = 15.0f;   /* 远处(前方)权重 */
+//        float t = (float)(i - start_point) / (float)(end_point - start_point);
+//        float w = far_w + (near_w - far_w) * t;
+//
+//        err += w * e;
+//        total_w += w;
+//    }
+//    return err / total_w;
+//}
+
+/**
+*
+*  高斯加权偏差融合（V2）
+*  start_point : 偏差计算起始行（远处，行号小）
+*  end_point   : 偏差计算终止行（近处，行号大）
+*  focus_row   : 权重中心行（高斯峰值位置）
+*                值越小 → 权重向远处集中 → 预判更强、响应更早
+*                值越大 → 权重向近处集中 → 响应更快、更"贴着走"
+*
+*  高斯函数: w(i) = exp(-(i - focus_row)² / (2 × sigma²))
+*  sigma = 20.0f  控制权重分布宽度（越大越"扁平"，各行的贡献越均匀）
+*
+*  调节思路:
+*    focus_row 配合速度做自适应: 速度越快 → focus_row越大 → 看更近
+*    例如: focus_row = 70 - Master_Speed / 15
+**/
+float err_sum_average_v2(uint8 start_point, uint8 end_point, uint8 focus_row)
 {
-	
-//	static float err_kp1 = 7.0f;
-//	static float err_kp2 = 0.7f;
-    //防止参数输入错误
-    if(end_point<start_point)
+    // 防止参数输入错误
+    if(end_point < start_point)
     {
-        uint8 t=end_point;
-        end_point=start_point;
-        start_point=t;
+        uint8 t = end_point;
+        end_point = start_point;
+        start_point = t;
     }
 
-    if(start_point<DEAL_IMAGE_H-search_stop_line)start_point=DEAL_IMAGE_H-search_stop_line-1;//防止起点越界
-    if(end_point<DEAL_IMAGE_H-search_stop_line)end_point=DEAL_IMAGE_H-search_stop_line-2;//防止终点越界
+    // 防止越界
+    if(start_point < DEAL_IMAGE_H - search_stop_line)
+        start_point = DEAL_IMAGE_H - search_stop_line - 1;
+    if(end_point < DEAL_IMAGE_H - search_stop_line)
+        end_point = DEAL_IMAGE_H - search_stop_line - 2;
 
-//#if 0  /* ---- 旧版：按误差大小非线性加权 ---- */
-//    float start_err = DEAL_IMAGE_W/2 - ((left_line[start_point]+right_line[start_point])>>1);
-//    float end_err   = DEAL_IMAGE_W/2 - ((left_line[end_point-1]+right_line[end_point-1])>>1);
-//    float mid_err = (start_err + end_err) / 2.0f;
-//
-//    float err=0;
-//    for(int i=start_point;i<end_point;i++)
-//    {
-//        float single_err = DEAL_IMAGE_W/2 - ((left_line[i]+right_line[i])>>1);
-//        if(single_err < mid_err)
-//            err += single_err * err_kp1;
-//        else
-//            err += single_err * err_kp2;
-//    }
-//    err=err/(end_point-start_point);
-//    return err;
-//#endif
+    // 防止 focus_row 越界
+    if(focus_row < start_point) focus_row = start_point;
+    if(focus_row > end_point)   focus_row = end_point;
 
-    /* ---- 新版：近处加权 → 急弯走内圈 ---- */
+    float sigma = 20.0f;            // 高斯带宽（改大=各行更均匀，改小=更集中在focus_row附近）
+    float two_sigma2 = 2.0f * sigma * sigma;
+
     float err = 0, total_w = 0;
-    for(int i = start_point; i < end_point; i++) {
-        float e = (float)DEAL_IMAGE_W/2
+    for(int i = start_point; i < end_point; i++)
+    {
+        float e = (float)DEAL_IMAGE_W / 2
                 - (float)((left_line[i] + right_line[i]) >> 1);
 
-        /* 权重: 远处→近处 线性过渡, 改下面两个数即可 */
-        float near_w = 7.5f;   /* 近处(车头)权重 */
-        float far_w  = 15.0f;   /* 远处(前方)权重 */
-        float t = (float)(i - start_point) / (float)(end_point - start_point);
-        float w = far_w + (near_w - far_w) * t;
+        // 高斯权重: 以 focus_row 为中心，越远离中心的行的偏差权重越低
+        float diff = (float)(i - focus_row);
+        float w = expf(-(diff * diff) / two_sigma2);
 
         err += w * e;
         total_w += w;
     }
+
+    if(total_w < 1e-6f) return 0;  // 防止除零
+
     return err / total_w;
+}
+
+/**
+*
+*  [兼容旧调用接口，内部转发到V2]
+**/
+float err_sum_average(uint8 start_point, uint8 end_point)
+{
+    return err_sum_average_v2(start_point, end_point, err_focus_row);
 }
 
 /*

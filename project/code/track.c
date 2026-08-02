@@ -12,7 +12,7 @@ void track_line(void)
 
 	static int32_t turn_control = 0;
 	// 每次速度环积分清0
-	speed_pid.ErrorInt = 0; 
+	speed_pid.ErrorInt = 0;
 	speed_pid.Error0 = 0;
 	speed_pid.Error1 = 0;
 
@@ -28,7 +28,7 @@ void track_line(void)
             if (image_out_of_bounds(mt9v03x_image)) {
                 break;
             }
-			
+
 			/* 斑马线判断，两次则停车 */
 			if (zebra_count_total >= 2) {
                 break;
@@ -48,51 +48,63 @@ void track_line(void)
             /* 道宽半边补线：单边丢线时用道宽从另一侧推算 */
 			inner_draw_line();
 
-            /* 计算中线误差 */
+            /* 计算中线误差（内部使用 err_focus_row 做高斯加权） */
             line_err = err_sum_average(err_start_point, err_end_point);
-			
-			/* 速度环 */
-//			speed_pid.Target = 235;
-			
-			/* 入弯动态降速 v1：偏差越大、速度越低 */
-			/* 速度环用滤波后的偏差 */
+
+			/* ──────────── 速度环 ──────────── */
+			/* 入弯动态降速：偏差越大、速度越低 */
             static float speed_err = 0;
             speed_err += (line_err - speed_err) * 0.5f;  // α=0.5，够平滑且不过度滞后
-            float speed_scale = 1.0f - fabsf(speed_err) * 0.045f;
-//			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
-//			speed_pid.Target = 310 * speed_scale;
-			float new_target = 340 * speed_scale;
-   		    if (new_target < 240) new_target = 240;
+			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
+			float new_target = 400 * speed_scale;
+   		    if (new_target < 250) new_target = 250;
    		    if (new_target < speed_pid.Target) {
-   			    // 减速：快速跟上，α 要大
-   			    speed_pid.Target += (new_target - speed_pid.Target) * 0.8f;
+   			    speed_pid.Target += (new_target - speed_pid.Target) * 0.8f;  // 减速快跟
    		    } else {
-   			    // 加速：慢慢升，α 要小
-   			    speed_pid.Target += (new_target - speed_pid.Target) * 0.3f;
+   			    speed_pid.Target += (new_target - speed_pid.Target) * 0.5f;  // 加速缓升
    		    }
-			
-//			speed_pid.Target += (new_target - speed_pid.Target) * 0.45f;  // 平滑过渡
-//			if(speed_pid.Target <= 220){speed_pid.Target = 230;}     // 速度限幅
-			
+
 			speed_pid.Actual = (speed_L + speed_R) / 2;
 			PID_Update(&speed_pid);
-			
-			/* 图像环 */
-			image_pid.Target = 0;
-			image_pid.Actual = line_err;
-			PID_Update(&image_pid);
-			float target_gz = -image_pid.Out;
-			
-			/* 角速度环 */
-			gyro_pid.Target = target_gz;
+
+			/* ──────────── 图像环 · 动态前瞻 ──────────── */
+			/*
+			 * 速度越快 → focus_row越大 → 看得越近 → 响应更及时
+			 *   speed=230: focus≈60  (低速,看远方预判)
+			 *   speed=300: focus=55  (中速)
+			 *   speed=380: focus≈50  (高速,看近处跟线紧)
+			 */
+			err_focus_row = (uint8)(75.0f - speed_pid.Actual / 15.0f);
+			if (err_focus_row < 30)  err_focus_row = 30;
+			if (err_focus_row > 100) err_focus_row = 100;
+
+			/* ──────────── 图像环 · 动态Kp ──────────── */
+			/*
+			 * 两层自适应（详见 pid.c Image_Kp_Update）:
+			 *   1) 速度越快 → Kp越大（同等偏差需更强转向）
+			 *   2) 视野越远(=越直) → Kp越低（防直道摆头）
+			 * 基准: 速度300/中弯 → Kp=18.0（你调好的默认值）
+			 */
+			Image_Kp_Update(&image_pid_struct, speed_pid.Actual, search_stop_line);
+			// printf("Kp:%.1f focus:%d top:%d\r\n", image_pid_struct.Kp, err_focus_row, search_stop_line);
+
+			/* ──────────── 图像环 · PID计算 ──────────── */
+			/*
+			 * Out = Kp×line_err + Kd×(line_err - last_err)
+			 * 正=左转, 负=右转（与旧版 image_pid 符号一致）
+			 */
+			float image_out = Image_PID_Calculate(&image_pid_struct, line_err, 0);
+
+			/* ──────────── 角速度环 ──────────── */
+			gyro_pid.Target = image_out;
 			gyro_pid.Actual = (float)real_gz;
 			PID_Update(&gyro_pid);
 			turn_control = -(int32_t)gyro_pid.Out;
 
-            /* 差速输出 */			
+            /* 差速输出 */
 			motor_set_pwm(DIR_L, PWM_L, speed_pid.Out + turn_control);
             motor_set_pwm(DIR_R, PWM_R, speed_pid.Out - turn_control);
-            
+
             motor_protect();
 
             mt9v03x_finish_flag = 0;

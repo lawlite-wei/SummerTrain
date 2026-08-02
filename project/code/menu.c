@@ -2,10 +2,10 @@
 
 /*==================== 按键状态 ====================*/
 /*
- * button1 : 返回
- * button2 : 确认
- * button3 : 下翻
- * button4 : 上翻
+ * button1 : 返回 (E3)
+ * button2 : 确认 (E4)
+ * button3 : 下翻 (E2)
+ * button4 : 上翻 (E5)
  */
 static uint8 button1 = 0, button2 = 0, button3 = 0, button4 = 0;
 static uint8 first_in_page_flag = 0;

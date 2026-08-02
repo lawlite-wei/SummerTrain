@@ -4,10 +4,15 @@ void motor_set_pwm(gpio_pin_enum dir,pwm_channel_enum pwm,int32 duty)
 {
 	// 极性反转
 	duty = -duty;
-	
+
+	// 左轮电机物理接线极性相反，额外取反
+	if (pwm == PWM_L) {
+		duty = -duty;
+	}
+
 	// 限幅
-	if(duty >= 8000){duty = 8000;}
-	if(duty <= -8000){duty = -8000;}
+	if(duty >= 10000){duty = 10000;}
+	if(duty <= -10000){duty = -10000;}
 	
 	if(duty >= 0)
 	{
