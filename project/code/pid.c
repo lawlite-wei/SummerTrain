@@ -140,20 +140,28 @@ void Image_Kp_Update(Direction_PID *pid, float avg_speed, uint8 search_stop_line
     float kp_ref     = 18.0f;   // 你调好的基准Kp（原 image_pid.Kp）
     float speed_ref  = 320.0f;  // 你的正常巡航速度
     float speed_ratio = avg_speed / speed_ref;
+    if (speed_ratio < 1.0f) speed_ratio = 1.0f;  // 低速不降Kp，高速才升Kp
 
     /* 距离因子: 视野越远=赛道越直 → Kp越低，防摆头 */
+    /* search_stop_line 80→120 线性映射到 dist_factor 1.0→0.5 */
     float dist_factor;
-    if      (search_stop_line > 110)  dist_factor = 0.50f;  // 超长直道
-    else if (search_stop_line > 100)  dist_factor = 0.65f;  // 长直道
-    else if (search_stop_line > 90)   dist_factor = 0.80f;  // 中直道
-    else if (search_stop_line > 80)   dist_factor = 0.90f;  // 微弯
-    else                              dist_factor = 1.00f;  // 弯道
+    float t = ((float)search_stop_line - 80.0f) / 40.0f;
+    if      (t < 0.0f) t = 0.0f;
+    else if (t > 1.0f) t = 1.0f;
+    dist_factor = 1.0f - 0.5f * t;
+
+    // [注释] 旧版阶梯分档：
+    // if      (search_stop_line > 110)  dist_factor = 0.50f;  // 超长直道
+    // else if (search_stop_line > 100)  dist_factor = 0.65f;  // 长直道
+    // else if (search_stop_line > 90)   dist_factor = 0.80f;  // 中直道
+    // else if (search_stop_line > 80)   dist_factor = 0.90f;  // 微弯
+    // else                              dist_factor = 1.00f;  // 弯道
 
     pid->Kp = kp_ref * speed_ratio * dist_factor;
 
     /* 硬限幅 */
     if (pid->Kp < 8.0f)   pid->Kp = 8.0f;
-    if (pid->Kp > 32.0f)  pid->Kp = 32.0f;
+    if (pid->Kp > 35.0f)  pid->Kp = 35.0f;
 }
 
 /*
@@ -165,8 +173,8 @@ PID_t gyro_pid={
 	.Ki = 0.0,
 	.Kd = 13,
 	
-	.OutMax = 6000,
-	.OutMin = -6000,
+	.OutMax = 5000,
+	.OutMin = -5000,
 };
 
 /*
@@ -191,8 +199,8 @@ PID_t speed_pid={
 	.Ki = 1.0,
 	.Kd = 0.2,
 	
-	.OutMax = 6000,
-	.OutMin = -6000,
+	.OutMax = 5000,
+	.OutMin = -5000,
 };
 
 /*
@@ -217,7 +225,7 @@ Direction_PID image_pid_struct = {
 
 	.Max_Error = 10000,
 	.MAX_Integral = 10000,
-	.MAX_OutPut = 800,
+	.MAX_OutPut = 700,
 
 	.OutPut = 0.0,
 };

@@ -1146,37 +1146,48 @@ void cross_judge(void)
         {
             find_up_point(MT9V03X_H-1,0);//寻找上拐点
 
-            find_down_point(MT9V03X_H-1,(left_up_point+right_up_point)/2);//寻找下拐点
+            // 左下和右下拐点直接用图像角点，不再搜索下拐点
+            // find_down_point(MT9V03X_H-1,(left_up_point+right_up_point)/2);//寻找下拐点
 
             if(right_up_point&&left_up_point)
             {
                 cross_flag=1;//十字标志置1
 
-                if(left_down_point&&right_down_point)//如果四个拐点都存在
-                {
-                    left_draw_line(left_line[left_up_point],left_up_point,left_line[left_down_point],left_down_point);//左边补线
-                    right_draw_line(right_line[right_up_point],right_up_point,right_line[right_down_point],right_down_point);//右边补线
-                }
-                else if(left_down_point&&!right_down_point)//如果左边有下拐点，右边没有
-                {
-                    left_draw_line(left_line[left_up_point],left_up_point,left_line[left_down_point],left_down_point);//左边补线
-                    extend_right_line(right_up_point-1,DEAL_IMAGE_H-1);//右边延长
-                }
-                else if(!left_down_point&&right_down_point)//如果右边有下拐点，左边没有
-                {
-                    right_draw_line(right_line[right_up_point],right_up_point,right_line[right_down_point],right_down_point);//右边补线
-                    extend_left_line(left_up_point-1,DEAL_IMAGE_H-1);//左边延长
-                }
-                else if(!left_down_point&&!right_down_point)//如果四个拐点都不存在
-                {
-                    extend_left_line(left_up_point-1,DEAL_IMAGE_H-1);//左边延长
-                    extend_right_line(right_up_point-1,DEAL_IMAGE_H-1);//右边延长
-                }
+                // 直接使用图像左下角和右下角作为下拐点
+                left_down_point  = DEAL_IMAGE_H - 1;
+                right_down_point = DEAL_IMAGE_H - 1;
+
+                // 从左上拐点补线到图像左下角
+                left_draw_line(left_line[left_up_point], left_up_point, 0, DEAL_IMAGE_H - 1);
+                // 从右上拐点补线到图像右下角
+                right_draw_line(right_line[right_up_point], right_up_point, MT9V03X_W - 1, DEAL_IMAGE_H - 1);
+
+                // [注释] 旧的四拐点分支逻辑：
+                // if(left_down_point&&right_down_point)//如果四个拐点都存在
+                // {
+                //     left_draw_line(left_line[left_up_point],left_up_point,left_line[left_down_point],left_down_point);
+                //     right_draw_line(right_line[right_up_point],right_up_point,right_line[right_down_point],right_down_point);
+                // }
+                // else if(left_down_point&&!right_down_point)
+                // {
+                //     left_draw_line(left_line[left_up_point],left_up_point,left_line[left_down_point],left_down_point);
+                //     extend_right_line(right_up_point-1,DEAL_IMAGE_H-1);
+                // }
+                // else if(!left_down_point&&right_down_point)
+                // {
+                //     right_draw_line(right_line[right_up_point],right_up_point,right_line[right_down_point],right_down_point);
+                //     extend_left_line(left_up_point-1,DEAL_IMAGE_H-1);
+                // }
+                // else if(!left_down_point&&!right_down_point)
+                // {
+                //     extend_left_line(left_up_point-1,DEAL_IMAGE_H-1);
+                //     extend_right_line(right_up_point-1,DEAL_IMAGE_H-1);
+                // }
             }
             else
             {
                 cross_flag=0;//十字标志清零
-            } 
+            }
         }
     }
 }

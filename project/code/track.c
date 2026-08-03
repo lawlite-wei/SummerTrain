@@ -56,10 +56,10 @@ void track_line(void)
             static float speed_err = 0;
             speed_err += (line_err - speed_err) * 0.5f;  // α=0.5，够平滑且不过度滞后
 			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
-			float new_target = 400 * speed_scale;
-   		    if (new_target < 250) new_target = 250;
+			float new_target = 380 * speed_scale;
+   		    if (new_target < 230) new_target = 230;
    		    if (new_target < speed_pid.Target) {
-   			    speed_pid.Target += (new_target - speed_pid.Target) * 0.8f;  // 减速快跟
+   			    speed_pid.Target += (new_target - speed_pid.Target) * 1.0f;  // 减速快跟
    		    } else {
    			    speed_pid.Target += (new_target - speed_pid.Target) * 0.5f;  // 加速缓升
    		    }
@@ -69,12 +69,16 @@ void track_line(void)
 
 			/* ──────────── 图像环 · 动态前瞻 ──────────── */
 			/*
-			 * 速度越快 → focus_row越大 → 看得越近 → 响应更及时
-			 *   speed=230: focus≈60  (低速,看远方预判)
-			 *   speed=300: focus=55  (中速)
-			 *   speed=380: focus≈50  (高速,看近处跟线紧)
+			 * 弯道看远提前预判，直道看近防摆头
+			 * search_stop_line < 80 → 弯道, focus=45 (看远)
+			 * search_stop_line ≥ 80 → 直道, focus=75-speed/15 (高速看近)
 			 */
-			err_focus_row = (uint8)(75.0f - speed_pid.Actual / 15.0f);
+			// [注释] 旧版纯速度前瞻：
+			// err_focus_row = (uint8)(75.0f - speed_pid.Actual / 15.0f);
+			if (search_stop_line < 80)
+			    err_focus_row = 45;  // 弯道看远，提前预判
+			else
+			    err_focus_row = (uint8)(75.0f - speed_pid.Actual / 15.0f);
 			if (err_focus_row < 30)  err_focus_row = 30;
 			if (err_focus_row > 100) err_focus_row = 100;
 
