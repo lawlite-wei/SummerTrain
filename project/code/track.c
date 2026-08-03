@@ -2,6 +2,7 @@
 #include <math.h>
 
 #define base_speed  1000    // 基础pwm
+#define SPEED_DIFF_GAIN  0.141f  // 转向→速度差转换系数 (=1/Kp，PWM→编码器单位，根据实车效果微调)
 
 // 巡线模式（按下Start后进入，KEY1退出）
 void track_line(void)
@@ -11,10 +12,15 @@ void track_line(void)
 //    otsu_enable = 1;
 
 	static int32_t turn_control = 0;
-	// 每次速度环积分清0
-	speed_pid.ErrorInt = 0;
-	speed_pid.Error0 = 0;
-	speed_pid.Error1 = 0;
+	static float base_speed_target = 0;
+
+	// 左右速度环积分/误差清0
+	speed_pid_L.ErrorInt = 0;
+	speed_pid_L.Error0 = 0;
+	speed_pid_L.Error1 = 0;
+	speed_pid_R.ErrorInt = 0;
+	speed_pid_R.Error0 = 0;
+	speed_pid_R.Error1 = 0;
 
     while (1) {
         if (mt9v03x_finish_flag) {
@@ -51,21 +57,20 @@ void track_line(void)
             /* 计算中线误差（内部使用 err_focus_row 做高斯加权） */
             line_err = err_sum_average(err_start_point, err_end_point);
 
-			/* ──────────── 速度环 ──────────── */
+			/* ──────────── 速度决策：直线+弯道速度计算 ──────────── */
 			/* 入弯动态降速：偏差越大、速度越低 */
             static float speed_err = 0;
             speed_err += (line_err - speed_err) * 0.5f;  // α=0.5，够平滑且不过度滞后
 			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
 			float new_target = 380 * speed_scale;
    		    if (new_target < 230) new_target = 230;
-   		    if (new_target < speed_pid.Target) {
-   			    speed_pid.Target += (new_target - speed_pid.Target) * 1.0f;  // 减速快跟
+   		    if (new_target < base_speed_target) {
+   			    base_speed_target += (new_target - base_speed_target) * 1.0f;  // 减速快跟
    		    } else {
-   			    speed_pid.Target += (new_target - speed_pid.Target) * 0.5f;  // 加速缓升
+   			    base_speed_target += (new_target - base_speed_target) * 0.5f;  // 加速缓升
    		    }
 
-			speed_pid.Actual = (speed_L + speed_R) / 2;
-			PID_Update(&speed_pid);
+			float avg_actual_speed = (speed_L + speed_R) / 2.0f;
 
 			/* ──────────── 图像环 · 动态前瞻 ──────────── */
 			/*
@@ -78,7 +83,7 @@ void track_line(void)
 			if (search_stop_line < 80)
 			    err_focus_row = 45;  // 弯道看远，提前预判
 			else
-			    err_focus_row = (uint8)(75.0f - speed_pid.Actual / 15.0f);
+			    err_focus_row = (uint8)(75.0f - avg_actual_speed / 15.0f);
 			if (err_focus_row < 30)  err_focus_row = 30;
 			if (err_focus_row > 100) err_focus_row = 100;
 
@@ -89,7 +94,7 @@ void track_line(void)
 			 *   2) 视野越远(=越直) → Kp越低（防直道摆头）
 			 * 基准: 速度300/中弯 → Kp=18.0（你调好的默认值）
 			 */
-			Image_Kp_Update(&image_pid_struct, speed_pid.Actual, search_stop_line);
+			Image_Kp_Update(&image_pid_struct, avg_actual_speed, search_stop_line);
 			// printf("Kp:%.1f focus:%d top:%d\r\n", image_pid_struct.Kp, err_focus_row, search_stop_line);
 
 			/* ──────────── 图像环 · PID计算 ──────────── */
@@ -105,9 +110,22 @@ void track_line(void)
 			PID_Update(&gyro_pid);
 			turn_control = -(int32_t)gyro_pid.Out;
 
-            /* 差速输出 */
-			motor_set_pwm(DIR_L, PWM_L, speed_pid.Out + turn_control);
-            motor_set_pwm(DIR_R, PWM_R, speed_pid.Out - turn_control);
+			/* ──────────── 左右速度环（最终输出级）──────────── */
+			float turn_speed_diff = turn_control * SPEED_DIFF_GAIN;
+
+			/* 左轮速度环 */
+			speed_pid_L.Target = base_speed_target + turn_speed_diff;
+			speed_pid_L.Actual = speed_L;
+			PID_Update(&speed_pid_L);
+
+			/* 右轮速度环 */
+			speed_pid_R.Target = base_speed_target - turn_speed_diff;
+			speed_pid_R.Actual = speed_R;
+			PID_Update(&speed_pid_R);
+
+            /* 差速输出：速度环直接输出 PWM */
+			motor_set_pwm(DIR_L, PWM_L, (int32_t)speed_pid_L.Out);
+            motor_set_pwm(DIR_R, PWM_R, (int32_t)speed_pid_R.Out);
 
             motor_protect();
 

@@ -56,6 +56,8 @@ typedef struct{
 }Direction_PID;
 
 extern PID_t speed_pid;
+extern PID_t speed_pid_L;
+extern PID_t speed_pid_R;
 extern PID_t gyro_pid;
 extern PID_t image_pid;
 extern Turn_PPDD_LocTypeDef track_pid;

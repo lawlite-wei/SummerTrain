@@ -33,7 +33,7 @@ void motor_protect(void)
 {
 	static int16_t block_time = 0;
 	
-	if(speed_pid.Out > 2500 && speed_L < 20 && speed_R < 20)
+	if((speed_pid_L.Out > 2500 || speed_pid_R.Out > 2500) && speed_L < 20 && speed_R < 20)
 	{
 		block_time ++;
 	}

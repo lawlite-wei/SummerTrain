@@ -191,16 +191,41 @@ PID_t image_pid={
 };
 
 /*
-*	速度环  (暂时不用)
-*   主要调节k,d
-*/ 
+*	速度环（保留作为参数参考，不再直接使用）
+*/
 PID_t speed_pid={
 	.Kp = 7.1,
 	.Ki = 1.0,
 	.Kd = 0.2,
-	
+
 	.OutMax = 5000,
 	.OutMin = -5000,
+};
+
+/*
+*	左轮速度环（位置式）
+*   参数继承原 speed_pid，后续独立整定
+*/
+PID_t speed_pid_L={
+	.Kp = 7.1,
+	.Ki = 1.0,
+	.Kd = 0.2,
+
+	.OutMax = 8000,
+	.OutMin = -8000,
+};
+
+/*
+*	右轮速度环（位置式）
+*   参数继承原 speed_pid，后续独立整定
+*/
+PID_t speed_pid_R={
+	.Kp = 7.1,
+	.Ki = 1.0,
+	.Kd = 0.2,
+
+	.OutMax = 8000,
+	.OutMin = -8000,
 };
 
 /*
