@@ -216,6 +216,81 @@ void speed_hold_test(void)
 }
 
 /*
+ *  左右速度环保持测试（独立轮速控制）
+ *  左右轮目标速度均为0，手动推车后各自速度环抵抗并回位
+ *  用来在静止状态下分别调左右速度环 Kp/Ki/Kd，KEY_1 退出
+ *  调好的参数可直接用于寻迹中的 speed_pid_L / speed_pid_R
+ */
+void speed_hold_LR_test(void)
+{
+    speed_pid_L.ErrorInt = 0;
+    speed_pid_L.Error0   = 0;
+    speed_pid_L.Error1   = 0;
+    speed_pid_R.ErrorInt = 0;
+    speed_pid_R.Error0   = 0;
+    speed_pid_R.Error1   = 0;
+
+    ips200_clear();
+    ips200_show_string(0,  0, "Speed Hold LR Test");
+    ips200_show_string(0, 16, "L_spd:       ");
+    ips200_show_string(0, 32, "L_PWM:       ");
+    ips200_show_string(0, 48, "R_spd:       ");
+    ips200_show_string(0, 64, "R_PWM:       ");
+    ips200_show_string(0, 96, "Push car -> returns");
+    ips200_show_string(0, 112, "KEY1: exit");
+
+    int16 last_Lspd = 1, last_Lpwm = 1;
+    int16 last_Rspd = 1, last_Rpwm = 1;
+
+    while (1) {
+        /* 左轮速度环: 目标=0, 反馈=speed_L */
+        speed_pid_L.Target = 0;
+        speed_pid_L.Actual = speed_L;
+        PID_Update(&speed_pid_L);
+
+        /* 右轮速度环: 目标=0, 反馈=speed_R */
+        speed_pid_R.Target = 0;
+        speed_pid_R.Actual = speed_R;
+        PID_Update(&speed_pid_R);
+
+        motor_set_pwm(DIR_L, PWM_L, (int32_t)speed_pid_L.Out);
+        motor_set_pwm(DIR_R, PWM_R, (int32_t)speed_pid_R.Out);
+
+        if (speed_L != last_Lspd) {
+            ips200_show_string(72, 16, "          ");
+            ips200_show_int(72, 16, speed_L, 8);
+            last_Lspd = speed_L;
+        }
+        if ((int32_t)speed_pid_L.Out != last_Lpwm) {
+            ips200_show_string(72, 32, "          ");
+            ips200_show_int(72, 32, (int32_t)speed_pid_L.Out, 8);
+            last_Lpwm = (int32_t)speed_pid_L.Out;
+        }
+        if (speed_R != last_Rspd) {
+            ips200_show_string(72, 48, "          ");
+            ips200_show_int(72, 48, speed_R, 8);
+            last_Rspd = speed_R;
+        }
+        if ((int32_t)speed_pid_R.Out != last_Rpwm) {
+            ips200_show_string(72, 64, "          ");
+            ips200_show_int(72, 64, (int32_t)speed_pid_R.Out, 8);
+            last_Rpwm = (int32_t)speed_pid_R.Out;
+        }
+
+        key_scanner();
+        if (key_get_state(KEY_1) == KEY_SHORT_PRESS) {
+            key_clear_state(KEY_1);
+            break;
+        }
+        system_delay_ms(10);
+    }
+
+    motor_set_pwm(DIR_L, PWM_L, 0);
+    motor_set_pwm(DIR_R, PWM_R, 0);
+    menu_request_redraw();
+}
+
+/*
  *  角速度环保持测试
  *  目标角速度设为0，左右推小车，观察小车是否抵抗旋转
  *  用来在静止状态下调角速度环 PID，KEY_1 退出

@@ -211,8 +211,8 @@ PID_t speed_pid_L={
 	.Ki = 1.0,
 	.Kd = 0.2,
 
-	.OutMax = 8000,
-	.OutMin = -8000,
+	.OutMax = 10000,
+	.OutMin = -10000,
 };
 
 /*
@@ -224,8 +224,8 @@ PID_t speed_pid_R={
 	.Ki = 1.0,
 	.Kd = 0.2,
 
-	.OutMax = 8000,
-	.OutMin = -8000,
+	.OutMax = 10000,
+	.OutMin = -10000,
 };
 
 /*
