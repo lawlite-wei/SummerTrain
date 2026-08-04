@@ -137,8 +137,8 @@ void Direction_PID_Init(Direction_PID *pid, float kp, float ki, float kd,
  */
 void Image_Kp_Update(Direction_PID *pid, float avg_speed, uint8 search_stop_line)
 {
-    float kp_ref     = 18.0f;   // 你调好的基准Kp（原 image_pid.Kp）
-    float speed_ref  = 320.0f;  // 你的正常巡航速度
+    float kp_ref     = image_kp_ref;  // 基准Kp，菜单可调（原 image_pid.Kp）
+    float speed_ref  = 300.0f;        // 你的正常巡航速度
     float speed_ratio = avg_speed / speed_ref;
     if (speed_ratio < 1.0f) speed_ratio = 1.0f;  // 低速不降Kp，高速才升Kp
 
@@ -165,17 +165,28 @@ void Image_Kp_Update(Direction_PID *pid, float avg_speed, uint8 search_stop_line
 }
 
 /*
-*	角速度环
-*   主要调节k,d  
-*/ 
+*	角速度环（反馈=陀螺仪gz换算为编码器差速量纲，输出=编码器差速修正量）
+*   主要调节Kp,Kd
+*   输入/输出均在编码器速度量纲，范围参考: base_speed≈230~380, 转弯差速≈±50~200
+*   NOTE: 原地gyro_hold_test建议 Kp=0.5~1.5, Kd=0.5~2.0
+*         寻迹时因为车有前进速度、图像环持续给动态目标，Kp/Kd 可适当加大
+*/
 PID_t gyro_pid={
-	.Kp = 18,
+	.Kp = 0.8,
 	.Ki = 0.0,
-	.Kd = 13,
-	
-	.OutMax = 5000,
-	.OutMin = -5000,
+	.Kd = 1.5,
+
+	.OutMax = 1000,
+	.OutMin = -1000,
 };
+
+/*
+ *  gyro_hold_test 调参记录:
+ *    Kp=2.0 Kd=5.0 → 疯狂抖动，增益过大
+ *    Kp=0.9 Ki=0.1 Kd=1.7 → 不回位+低频微震，Ki太小导致积分狩猎
+ *    正确思路: Ki要么0(纯阻尼不要求回位)，要么≥0.3(一次推回位)
+ *    下一步: 试 Ki=0.3→0.5，如果回位过冲则加 Kd 到 2.0~3.0
+ */
 
 /*
 *	图像环
@@ -208,8 +219,8 @@ PID_t speed_pid={
 */
 PID_t speed_pid_L={
 	.Kp = 7.1,
-	.Ki = 1.0,
-	.Kd = 0.2,
+	.Ki = 0.8,
+	.Kd = 0.0,
 
 	.OutMax = 10000,
 	.OutMin = -10000,
@@ -221,8 +232,8 @@ PID_t speed_pid_L={
 */
 PID_t speed_pid_R={
 	.Kp = 7.1,
-	.Ki = 1.0,
-	.Kd = 0.2,
+	.Ki = 0.8,
+	.Kd = 0.0,
 
 	.OutMax = 10000,
 	.OutMin = -10000,
@@ -241,16 +252,19 @@ Turn_PPDD_LocTypeDef track_pid = {
 	.PID_OUT_LIMIT_MAX = 7800,
 };
 
+/* 图像环基准Kp（菜单可调，Image_Kp_Update以此为基准做动态调整） */
+float image_kp_ref = 18.0f;
+
 Direction_PID image_pid_struct = {
 	.Kp = 18.0,             // 初始值，运行中由 Image_Kp_Update 动态更新
-	.Kp2 = 0.0,
+	.Kp2 = 0.3,             // 二次项系数（弯道自动加力，直道几乎不影响）
 	.Ki = 0.0,
-	.Kd = 1.5,              // 微分项（阻尼，固定不变）
+	.Kd = 1.5,              // 微分项（阻尼，菜单可调）
 	.Kd_feedback = 0.0,
 
 	.Max_Error = 10000,
 	.MAX_Integral = 10000,
-	.MAX_OutPut = 700,
+	.MAX_OutPut = 1000,     // 提高上限，弯道配合Kp2可突破700
 
 	.OutPut = 0.0,
 };

@@ -62,6 +62,7 @@ extern PID_t gyro_pid;
 extern PID_t image_pid;
 extern Turn_PPDD_LocTypeDef track_pid;
 extern Direction_PID image_pid_struct;
+extern float image_kp_ref;  // 图像环基准Kp（Image_Kp_Update动态调整的参考值）
 
 void PID_Update(PID_t *p);
 float PPDD_location(float setvalue, float actualvalue, float GZ, Turn_PPDD_LocTypeDef *PPDD);

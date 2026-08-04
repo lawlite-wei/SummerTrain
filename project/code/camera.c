@@ -332,8 +332,8 @@ uint8 image_out_of_bounds(unsigned char in_image[DEAL_IMAGE_H][DEAL_IMAGE_W])
             sum+=in_image[DEAL_IMAGE_H-1-j][DEAL_IMAGE_W/2-5+i];
         }
     }
-    int average = sum / 30;    // 计算平均值
-    if(average < 210){return 1;}
+    int average = sum / 50;    // 计算平均值
+    if(average < 150){return 1;}
     else{return 0;}
 }
 
@@ -657,7 +657,7 @@ float err_sum_average_v2(uint8 start_point, uint8 end_point, uint8 focus_row)
     if(focus_row < start_point) focus_row = start_point;
     if(focus_row > end_point)   focus_row = end_point;
 
-    float sigma = 20.0f;            // 高斯带宽（改大=各行更均匀，改小=更集中在focus_row附近）
+    float sigma = 10.0f;            // 高斯带宽（改大=各行更均匀，改小=更集中在focus_row附近）
     float two_sigma2 = 2.0f * sigma * sigma;
 
     float err = 0, total_w = 0;

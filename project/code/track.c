@@ -1,8 +1,13 @@
-﻿#include "track.h"
+#include "track.h"
 #include <math.h>
 
 #define base_speed  1000    // 基础pwm
-#define SPEED_DIFF_GAIN  0.141f  // 转向→速度差转换系数 (=1/Kp，PWM→编码器单位，根据实车效果微调)
+
+/* ─── 角速度环量纲转换系数 ─── */
+#define GZ_TO_ENCODER       0.299f  // gyro_z(°/s) → 编码器差速(脉冲/20ms), 实测标定
+#define IMAGE_TO_GYRO_SCALE 0.5f    // image_out(抽象) → 角速度环期望(编码器差速单位)
+                                     // 推算: 弯道编码器差速≈100~150, image_out≈500~700
+                                     // scale = 120/600 ≈ 0.2。0.5太大导致角速度环常饱和
 
 // 巡线模式（按下Start后进入，KEY1退出）
 void track_line(void)
@@ -13,14 +18,19 @@ void track_line(void)
 
 	static int32_t turn_control = 0;
 	static float base_speed_target = 0;
+		static float gyro_fb_filt = 0.0f;     // gyro_fb 低通滤波
+		static float err_focus_filt = 55.0f;  // 动态前瞻滤波
 
-	// 左右速度环积分/误差清0
+	// 积分/误差清0
 	speed_pid_L.ErrorInt = 0;
 	speed_pid_L.Error0 = 0;
 	speed_pid_L.Error1 = 0;
 	speed_pid_R.ErrorInt = 0;
 	speed_pid_R.Error0 = 0;
 	speed_pid_R.Error1 = 0;
+	gyro_pid.ErrorInt  = 0;
+    gyro_pid.Error0    = 0;
+    gyro_pid.Error1    = 0;
 
     while (1) {
         if (mt9v03x_finish_flag) {
@@ -63,11 +73,12 @@ void track_line(void)
             speed_err += (line_err - speed_err) * 0.5f;  // α=0.5，够平滑且不过度滞后
 			float speed_scale = 1.0f - fabsf(line_err) * 0.045f;
 			float new_target = 380 * speed_scale;
-   		    if (new_target < 230) new_target = 230;
+
+   		    if (new_target < 200) new_target = 200;
    		    if (new_target < base_speed_target) {
    			    base_speed_target += (new_target - base_speed_target) * 1.0f;  // 减速快跟
    		    } else {
-   			    base_speed_target += (new_target - base_speed_target) * 0.5f;  // 加速缓升
+   			    base_speed_target += (new_target - base_speed_target) * 0.4f;  // 加速缓升
    		    }
 
 			float avg_actual_speed = (speed_L + speed_R) / 2.0f;
@@ -75,17 +86,19 @@ void track_line(void)
 			/* ──────────── 图像环 · 动态前瞻 ──────────── */
 			/*
 			 * 弯道看远提前预判，直道看近防摆头
-			 * search_stop_line < 80 → 弯道, focus=45 (看远)
-			 * search_stop_line ≥ 80 → 直道, focus=75-speed/15 (高速看近)
+			 * 使用轻微滤波平滑弯直交界过渡（α=0.6，快速响应避免相位滞后）
 			 */
-			// [注释] 旧版纯速度前瞻：
-			// err_focus_row = (uint8)(75.0f - speed_pid.Actual / 15.0f);
-			if (search_stop_line < 80)
-			    err_focus_row = 45;  // 弯道看远，提前预判
-			else
-			    err_focus_row = (uint8)(75.0f - avg_actual_speed / 15.0f);
-			if (err_focus_row < 30)  err_focus_row = 30;
-			if (err_focus_row > 100) err_focus_row = 100;
+			{
+			    float target_focus;
+			    if (search_stop_line < 80)
+			        target_focus = 45.0f;
+			    else
+			        target_focus = 75.0f - avg_actual_speed / 15.0f;
+			    if (target_focus < 30) target_focus = 30;
+			    if (target_focus > 100) target_focus = 100;
+			    err_focus_filt += 0.8f * (target_focus - err_focus_filt);
+			    err_focus_row = (uint8)err_focus_filt;
+			}
 
 			/* ──────────── 图像环 · 动态Kp ──────────── */
 			/*
@@ -105,21 +118,39 @@ void track_line(void)
 			float image_out = Image_PID_Calculate(&image_pid_struct, line_err, 0);
 
 			/* ──────────── 角速度环 ──────────── */
-			gyro_pid.Target = image_out;
-			gyro_pid.Actual = (float)real_gz;
+			/*
+			 * 反馈: gyro_z 换算为编码器差速量纲 → 输入角速度环
+			 * α=1.0 表示不过滤（直道需低延迟）。如果陀螺仪噪声大，降到 0.6~0.7
+			 */
+			float gyro_target = image_out * IMAGE_TO_GYRO_SCALE;
+			float gyro_fb_raw = (float)real_gz * GZ_TO_ENCODER;
+			gyro_fb_filt += 1.0f * (gyro_fb_raw - gyro_fb_filt);  // α=1.0：不过滤，无相位滞后
+
+			gyro_pid.Target = gyro_target;
+			gyro_pid.Actual = gyro_fb_filt;
 			PID_Update(&gyro_pid);
 			turn_control = -(int32_t)gyro_pid.Out;
 
-			/* ──────────── 左右速度环（最终输出级）──────────── */
-			float turn_speed_diff = turn_control * SPEED_DIFF_GAIN;
+			/* 防侧翻：动态差速限制，直道紧弯道松 */
+			/* 偏差大=急弯→允许更大差速；偏差小=直道→收紧防翻 */
+			{
+			    float err_abs = fabsf(line_err);
+			    float min_forward = 110.0f - err_abs * 2.5f;  // 直道≈110, 急弯≈10
+			    if (min_forward < 10.0f) min_forward = 10.0f;
+			    if (min_forward > 110.0f) min_forward = 110.0f;
+			    float max_diff = base_speed_target - min_forward;
+			    if (max_diff < 30.0f) max_diff = 30.0f;
+			    if (turn_control >  (int32_t)max_diff) turn_control =  (int32_t)max_diff;
+			    if (turn_control < -(int32_t)max_diff) turn_control = -(int32_t)max_diff;
+			}
 
-			/* 左轮速度环 */
-			speed_pid_L.Target = base_speed_target + turn_speed_diff;
+			/* ──────────── 左右速度环（最终输出级）──────────── */
+			/* turn_control 已在编码器差速量纲，直接加减 */
+			speed_pid_L.Target = base_speed_target + turn_control;
 			speed_pid_L.Actual = speed_L;
 			PID_Update(&speed_pid_L);
 
-			/* 右轮速度环 */
-			speed_pid_R.Target = base_speed_target - turn_speed_diff;
+			speed_pid_R.Target = base_speed_target - turn_control;
 			speed_pid_R.Actual = speed_R;
 			PID_Update(&speed_pid_R);
 
